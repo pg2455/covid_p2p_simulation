@@ -208,9 +208,12 @@ class Human(object):
         self.rho = rho
         self.gamma = gamma
 
+
         self.action = Human.actions['at_home']
         self.visits = Visits()
 
+        # Disease parameters
+        self.incubation_days = _draw_random_discreet_gaussian(AVERAGE_INCUBATION_DAYS, SCALE_INCUBATION_DAYS)
         # Indicates whether this person will show severe signs of illness.
         self.infection_timestamp = infection_timestamp
         self.really_sick = self.is_sick and random.random() >= 0.9
@@ -240,14 +243,14 @@ class Human(object):
 
         self.work_start_hour = np.random.choice(range(7, 12))
 
-    def to_sick_to_shop(self):
+    def to_sick_to_move(self):
         # Assume 2 weeks incubation time ; in 10% of cases person becomes to sick
         # to go shopping after 2 weeks for at least 10 days and in 1% of the cases
         # never goes shopping again.
-        time_since_sick_delta = self.env.timestamp - self.infection_timestamp
+        days_since_first_sick = (self.env.timestamp - self.infection_timestamp).days
         in_peak_illness_time = (
-                time_since_sick_delta >= INCUBATION_DAYS * 24 * 60 and
-                time_since_sick_delta <= (INCUBATION_DAYS + NUM_DAYS_SICK) * 24 * 60
+                days_since_first_sick >= self.incubation_days and
+                days_since_first_sick <= (self.incubation_days + NUM_DAYS_SICK)
         )
         return (in_peak_illness_time or self.never_recovers) and self.really_sick
 
@@ -277,7 +280,7 @@ class Human(object):
         while True:
             # Simulate some tests
             if self.is_sick and self.env.timestamp - self.infection_timestamp > datetime.timedelta(
-                    days=INCUBATION_DAYS):
+                    days=self.incubation_days):
                 # Todo ensure it only happen once
                 result = random.random() > 0.8
                 Event.log_test(self, time=self.env.timestamp, result=result)
