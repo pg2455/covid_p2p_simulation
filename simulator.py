@@ -218,10 +218,11 @@ class Human(object):
         self.name = name
         self.age = _get_random_age()
 
+        # Disease parameters
         # probability of being asymptomatic is basically 50%, but a bit less if you're older
         # and a bit more if you're younger
         self.asymptomatic = np.random.rand() > (BASELINE_P_ASYMPTOMATIC - (self.age - 50)*0.5)/100
-
+        self.incubation_days = _draw_random_discreet_gaussian(AVERAGE_INCUBATION_DAYS, SCALE_INCUBATION_DAYS)
 
         self.household = household
         self.workplace = workplace
@@ -269,14 +270,14 @@ class Human(object):
 
 
 
-    def to_sick_to_shop(self):
+    def to_sick_to_move(self):
         # Assume 2 weeks incubation time ; in 10% of cases person becomes to sick
         # to go shopping after 2 weeks for at least 10 days and in 1% of the cases
         # never goes shopping again.
-        time_since_sick_delta = env.timestamp - self.infection_timestamp
+        time_since_sick_delta = (env.timestamp - self.infection_timestamp).days
         in_peak_illness_time = (
-            time_since_sick >= INCUBATION_DAYS * 24 * 60 and
-            time_since_sick <= (INCUBATION_DAYS + NUM_DAYS_SICK) * 24 * 60)
+            time_since_sick_delta >= self.incubation_days and
+            time_since_sick_delta <= (self.incubation_days + NUM_DAYS_SICK))
         return (in_peak_illness_time or self.never_recovers) and self.really_sick
 
     def lat(self):
