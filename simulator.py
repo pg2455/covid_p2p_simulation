@@ -394,12 +394,12 @@ class Human(object):
         self.household.humans.add(self)
         while True:
             # Simulate some tests
-            if self.is_sick and env.timestamp - self.infection_timestamp > datetime.timedelta(days=INCUBATION_DAYS):
-                # Todo ensure it only happen once
-                result = random.random() > 0.8
-                Event.log_test(self, time=env.timestamp, result=result)
-                #Fixme: After a user get tested positive, assume no more activity
-                break
+            if self.is_sick and env.timestamp - self.infection_timestamp > datetime.timedelta(days=self.incubation_days):
+                # Todo ensure it only happen once.
+                positive_test_result = random.random() > 0.8
+                Event.log_test(self, time=env.timestamp, result=positive_test_result)
+                if positive_test_result or self.to_sick_to_move:
+                    break
 
             elif env.hour_of_day() == self.work_start_hour and not env.is_weekend() and not WORK_FROM_HOME:
                 yield env.process(self.go_to_work(env))
@@ -551,7 +551,7 @@ class Human(object):
         while True:
             # Simulate some tests
             if self.is_sick and self.env.timestamp - self.infection_timestamp > datetime.timedelta(
-                    days=INCUBATION_DAYS):
+                    days=self.incubation_days):
                 # Todo ensure it only happen once
                 result = random.random() > 0.8
                 Event.log_test(self, time=self.env.timestamp, result=result)
