@@ -3,9 +3,10 @@ import random
 
 import numpy as np
 
-from config import BASELINE_P_ASYMPTOMATIC, P_COLD, P_FLU, INCUBATION_DAYS, \
-    P_TEST, P_FALSE_NEGATIVE, SYMPTOM_DAYS, INFECTIOUSNESS_CURVE
+from config import BASELINE_P_ASYMPTOMATIC, P_COLD, P_FLU, \
+    P_TEST, P_FALSE_NEGATIVE, SYMPTOM_DAYS, INFECTIOUSNESS_CURVE, AVERAGE_INCUBATION_DAYS, SCALE_INCUBATION_DAYS
 from event import Event
+from utils import _draw_random_discreet_gaussian
 
 
 class Infection(object):
@@ -16,6 +17,7 @@ class Infection(object):
         # probability of being asymptomatic is basically 50%, but a bit less if you're older
         # and a bit more if you're younger
         self.asymptomatic = np.random.rand() > (BASELINE_P_ASYMPTOMATIC - (self.age - 50) * 0.5) / 100
+        self.incubation_days = _draw_random_discreet_gaussian(AVERAGE_INCUBATION_DAYS, SCALE_INCUBATION_DAYS)
 
         self.has_cold = np.random.rand() < P_COLD * self.age_modifier
         self.has_flu = np.random.rand() < P_FLU * self.age_modifier
@@ -127,7 +129,7 @@ class Infection(object):
             # FIXME: let update the health dynamically
             self.update_health()
             if self.is_sick and self.env.timestamp - self.infection_timestamp > datetime.timedelta(
-                    days=INCUBATION_DAYS):
+                    days=self.incubation_days):
                 # Todo ensure it only happen once
                 result = random.random() > 0.8
                 Event.log_test(self.human, time=self.env.timestamp, result=result)
