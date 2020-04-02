@@ -9,7 +9,7 @@ from event import Event
 from utils import _draw_random_discreet_gaussian
 
 
-class Infection(object):
+class Health(object):
 
     def __init__(self, agent):
         self.human = agent

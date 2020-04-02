@@ -6,7 +6,7 @@ import numpy as np
 
 from agent import Agent
 from config import TICK_MINUTE
-from health import Infection
+from health import Health
 from mobility import HumanMobility
 from monitors import EventMonitor, TimeMonitor
 from world import Env, Location, City
@@ -133,7 +133,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
 
     for human in humans:
         # Important to instantiate InfectionProcess before mobility for some state health management
-        env.process(Infection(human).run())
+        env.process(Health(human).run())
         env.process(HumanMobility(human, city).run())
 
     for m in monitors:
