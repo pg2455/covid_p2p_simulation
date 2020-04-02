@@ -2,10 +2,10 @@ import datetime
 import unittest
 from tempfile import NamedTemporaryFile
 
-from run import run_simu
 import pickle
 
-from simulator import Event
+from run import run_simu
+from event import Event
 
 
 class FullUnitTest(unittest.TestCase):

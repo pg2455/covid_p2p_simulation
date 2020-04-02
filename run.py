@@ -1,8 +1,16 @@
-from monitors import EventMonitor, TimeMonitor
-from simulator import *
-from utils import _draw_random_discreet_gaussian
 import datetime
+import random
+
 import click
+import numpy as np
+
+from agent import Agent
+from config import TICK_MINUTE
+from health import Infection
+from mobility import HumanMobility
+from monitors import EventMonitor, TimeMonitor
+from world import Env, Location, City
+from utils import _draw_random_discreet_gaussian, _get_random_age
 
 
 @click.group()
@@ -33,6 +41,17 @@ def sim(n_stores=None, n_people=None, n_parks=None, n_misc=None,
         outfile=outfile,
         print_progress=print_progress
     )
+
+
+@simu.command()
+def test():
+    import unittest
+    loader = unittest.TestLoader()
+    start_dir = 'tests'
+    suite = loader.discover(start_dir, pattern='*_test.py')
+
+    runner = unittest.TextTestRunner()
+    runner.run(suite)
 
 
 def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
@@ -96,16 +115,16 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
     ]
 
     humans = [
-        Human(
+        Agent(
             env=env,
             name=i,
+            age=_get_random_age(),
             infection_timestamp=start_time if i < n_people * init_percent_sick else None,
-            household=np.random.choice(households),
-            workplace=np.random.choice(workplaces)
+            household=np.random.choice(households)
         )
         for i in range(n_people)]
 
-    city = City(stores=stores, parks=parks, humans=humans, miscs=miscs)
+    city = City(stores=stores, parks=parks, humans=humans, miscs=miscs, workplaces=workplaces)
     monitors = [EventMonitor(f=120)]
 
     # run the simulation
@@ -113,7 +132,9 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
         monitors.append(TimeMonitor(60))
 
     for human in humans:
-        env.process(human.run(city=city))
+        # Important to instantiate InfectionProcess before mobility for some state health management
+        env.process(Infection(human).run())
+        env.process(HumanMobility(human, city).run())
 
     for m in monitors:
         env.process(m.run(env, city=city))
@@ -121,17 +142,6 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
 
     monitors[0].dump(outfile)
     return monitors[0].data
-
-
-@simu.command()
-def test():
-    import unittest
-    loader = unittest.TestLoader()
-    start_dir = 'tests'
-    suite = loader.discover(start_dir, pattern='*_test.py')
-
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
 
 
 if __name__ == "__main__":

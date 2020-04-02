@@ -1,5 +1,6 @@
 from config import TICK_MINUTE
-from simulator import City, Human
+from mobility import HumanMobility
+from world import City
 from matplotlib import pyplot as plt
 import json
 import pylab as pl
@@ -48,7 +49,7 @@ class PlotMonitor(BaseMonitor):
                 'htime': city.clock.time_of_day(),
                 'sick': sum([int(h.is_sick) for h in city.humans]),
             }
-            for k, v in Human.actions.items():
+            for k, v in HumanMobility.actions.items():
                 d[k] = sum(int(h.action == v) for h in city.humans)
 
             self.data.append(d)
@@ -61,7 +62,7 @@ class PlotMonitor(BaseMonitor):
         time_series = [d['time'] for d in self.data]
         sick_series = [d['sick'] for d in self.data]
         pl.plot(time_series, sick_series, label='sick')
-        for k, v in Human.actions.items():
+        for k, v in HumanMobility.actions.items():
             action_series = [d[k] for d in self.data]
             pl.plot(time_series, action_series, label=k)
 
