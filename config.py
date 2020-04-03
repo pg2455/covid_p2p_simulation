@@ -21,6 +21,9 @@ INFECTIOUSNESS_CURVE = [0.05, 0.1, 0.2, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05]
 P_COLD = 0.1 # &p-cold
 P_FLU = 0.05 # &p-flu
 
+AVERAGE_INCUBATION_DAYS = 5 #TODO TM I added these to make the code run but they're probably wrong
+SCALE_INCUBATION_DAYS = 2.5
+
 # SIMULATION PARAMETERS
 TICK_MINUTE = 2  # @param increment
 SIMULATION_DAYS = 30  # @param

@@ -109,41 +109,65 @@ class Event:
                 'time': time,
                 'event_type': Event.encounter,
                 'human_id': human1.name,
-                'encounter': {
-                    'time': time,
-                    'event_type': Event.encounter,
-                    'duration': duration,
-                    'distance': distance,
-                    'location_type': location.location_type,
-                    'contamination_prob': location.cont_prob,
-                    'lat': location.lat,
-                    'lon': location.lon,
-                    'obs_lat': human1.obs_lat,
-                    'obs_lon': human1.obs_lon,
+                'observed': {
+                     'encounter': {
+                        'time': time,
+                        'event_type': Event.encounter,
+                        'duration': duration,
+                        'distance': distance,
+                        'location_type': location.location_type,
+                        'contamination_prob': location.cont_prob,
+                        'lat': human1.obs_lat,
+                        'lon': human1.obs_lon,
+                    },
+                    'human1': {
+                        'human_id': human1.name,
+                        'infection_timestamp': human1.infection_timestamp,
+                        'infectiousness': human1.infectiousness,
+                    },
+                    'human2': {
+                        'other_human_id': human2.name,
+                        'other_infection_timestamp': human2.infection_timestamp,
+                        'other_infectiousness': human2.infectiousness,
+                    }
                 },
-                'human1': {
-                    'human_id': human1.name,
-                    'age': human1.age,
-                    'carefullness': human1.carefullness,
-                    'is_infected': human1.is_sick,
-                    'infection_timestamp': human1.infection_timestamp,
-                    'infectiousness': human1.infectiousness,
-                    'reported_symptoms': human1.reported_symptoms,
-                    'symptoms': human1.symptoms,
-                    'test_results': human1.test_results,
-                    'has_app': human1.has_app,
-                },
-                'human2': {
-                    'other_human_id': human2.name,
-                    'other_age': human2.age,
-                    'other_carefullness': human2.carefullness,
-                    'other_is_infected': human2.is_sick,
-                    'other_infection_timestamp': human2.infection_timestamp,
-                    'other_infectiousness': human2.infectiousness,
-                    'other_reported_symptoms': human2.reported_symptoms,
-                    'other_symptoms': human2.symptoms,
-                    'other_test_results': human2.test_results,
-                    'other_has_app': human2.has_app,
+                'unobserved': {
+                    'encounter': {
+                        'time': time,
+                        'event_type': Event.encounter,
+                        'duration': duration,
+                        'distance': distance,
+                        'location_type': location.location_type,
+                        'contamination_prob': location.cont_prob,
+                        'lat': location.lat,
+                        'lon': location.lon,
+                        'obs_lat': human1.obs_lat,
+                        'obs_lon': human1.obs_lon,
+                    },
+                    'human1': {
+                        'human_id': human1.name,
+                        'age': human1.age,
+                        'carefullness': human1.carefullness,
+                        'is_infected': human1.is_sick,
+                        'infection_timestamp': human1.infection_timestamp,
+                        'infectiousness': human1.infectiousness,
+                        'reported_symptoms': human1.reported_symptoms,
+                        'symptoms': human1.symptoms,
+                        'test_results': human1.test_results,
+                        'has_app': human1.has_app,
+                    },
+                    'human2': {
+                        'other_human_id': human2.name,
+                        'other_age': human2.age,
+                        'other_carefullness': human2.carefullness,
+                        'other_is_infected': human2.is_sick,
+                        'other_infection_timestamp': human2.infection_timestamp,
+                        'other_infectiousness': human2.infectiousness,
+                        'other_reported_symptoms': human2.reported_symptoms,
+                        'other_symptoms': human2.symptoms,
+                        'other_test_results': human2.test_results,
+                        'other_has_app': human2.has_app,
+                    }
                 }
             }
         )
@@ -267,6 +291,7 @@ class Human(object):
         # probability of being asymptomatic is basically 50%, but a bit less if you're older
         # and a bit more if you're younger
         self.asymptomatic = np.random.rand() > (BASELINE_P_ASYMPTOMATIC - (self.age - 50) * 0.5) / 100
+        self.incubation_days = _draw_random_discreet_gaussian(AVERAGE_INCUBATION_DAYS, SCALE_INCUBATION_DAYS)
 
         self.household = household
         self.workplace = workplace
@@ -320,14 +345,14 @@ class Human(object):
 
         self.work_start_hour = np.random.choice(range(7, 12))
 
-    def to_sick_to_shop(self):
+    def to_sick_to_move(self):
         # Assume 2 weeks incubation time ; in 10% of cases person becomes to sick
         # to go shopping after 2 weeks for at least 10 days and in 1% of the cases
         # never goes shopping again.
-        time_since_sick_delta = env.timestamp - self.infection_timestamp
+        time_since_sick_delta = (env.timestamp - self.infection_timestamp).days
         in_peak_illness_time = (
-                time_since_sick >= INCUBATION_DAYS * 24 * 60 and
-                time_since_sick <= (INCUBATION_DAYS + NUM_DAYS_SICK) * 24 * 60)
+                time_since_sick >= self.incubation_days and
+                time_since_sick <= (self.incubation_days + NUM_DAYS_SICK))
         return (in_peak_illness_time or self.never_recovers) and self.really_sick
 
     @property
@@ -589,7 +614,7 @@ class Human(object):
         while True:
             # Simulate some tests
             if self.is_sick and self.env.timestamp - self.infection_timestamp > datetime.timedelta(
-                    days=INCUBATION_DAYS):
+                    days=self.incubation_days):
                 # Todo ensure it only happen once
                 result = random.random() > 0.8
                 Event.log_test(self, time=self.env.timestamp, result=result)
