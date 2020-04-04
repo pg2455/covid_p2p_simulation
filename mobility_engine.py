@@ -3,6 +3,7 @@ from typing import List, Mapping
 import random
 import datetime
 import itertools
+import weakref
 
 import simpy
 import networkx as nx
@@ -11,6 +12,7 @@ from addict import Dict
 
 from utils import _draw_random_discreet_gaussian, compute_distance, get_random_word
 from config import TICK_MINUTE
+from simulator import Human
 import mobility_config as mcfg
 import mobility_utils as mutl
 
@@ -119,6 +121,9 @@ class Transit(Location):
         destination: Location,
         mobility_mode: mcfg.MobilityMode,
     ):
+        # Privates
+        self._travel_time = None
+        # Publics
         self.source = source
         self.destination = destination
         self.mobility_mode = mobility_mode
@@ -131,13 +136,24 @@ class Transit(Location):
             cont_prob=mobility_mode.transmission_proba,
         )
 
+    @property
+    def travel_time(self):
+        if self._travel_time is None:
+            self._travel_time = self.mobility_mode.travel_time(
+                distance=mutl.compute_geo_distance(self.source, self.destination)
+            )
+        return self._travel_time
+
 
 class City(object):
+    _all_cities = set()
+
     def __init__(self, env: Env, locations: List[Location]):
         self.env = env
         self.locations = locations
         # Prepare a graph over locations
         self._build_graph()
+        self._all_cities.add(weakref.ref(self))
 
     def _build_graph(self):
         graph = nx.MultiGraph()
@@ -146,6 +162,9 @@ class City(object):
         # Edges between nodes are annotated by mobility modes
         for source, destination in itertools.product(graph.nodes, graph.nodes):
             if (source, destination) in graph.edges:
+                continue
+            # No self edges
+            if source == destination:
                 continue
             # To the edges, we're gonna add:
             #   1. Raw distance,
@@ -172,11 +191,15 @@ class City(object):
 
         if destination == source:
             return []
+        assert source in self.locations, f"Trip source {source} is not in city {city}!"
+        assert (
+            destination in self.locations
+        ), f"Trip destination {destination} is not in city {city}!"
+        # Keep track of the transit mode with the best score
         favorite_modes = Dict()
 
         # The weight function provides a measure of "distance" for Djikstra
         def weight_fn(u, v, d):
-            global favorite_modes
             # First case is when the mobility mode is not supported
             if not set(d.keys()).intersection(set(mobility_mode_preference.keys())):
                 # This means that mobility_mode_preference does not specify
@@ -227,6 +250,74 @@ class City(object):
 
         return transits
 
+    @classmethod
+    def get_all_cities(cls):
+        dead = set()
+        for ref in cls._all_cities:
+            obj = ref()
+            if obj is not None:
+                yield obj
+            else:
+                dead.add(ref)
+        cls._all_cities -= dead
+
+    def __contains__(self, item):
+        if isinstance(item, Human):
+            return item.location in self.locations
+        elif isinstance(item, Location):
+            return item in self.locations
+        else:
+            raise ValueError(
+                f"Cannot check if {type(item)} is contained in city instance."
+            )
+
+    @classmethod
+    def find_human(cls, human: Human):
+        for city in cls.get_all_cities():
+            if human in city:
+                return city
+        return None
+
+
+class Trip(object):
+    """Implements an interface between `Human` and the `City`."""
+
+    def __init__(
+        self,
+        env: Env,
+        human: Human,
+        trip_plan: List[Transit] = None,
+        source: Location = None,
+        destination: Location = None,
+    ):
+        self.env = env
+        self.human = human
+        if trip_plan is not None:
+            self.trip_plan = trip_plan
+            self.source = self.trip_plan[0].source
+            self.destination = self.trip_plan[-1].destination
+        else:
+            assert None not in [
+                source,
+                destination,
+            ], "Both source and destination must be provided in order to plan a trip."
+            # Find human's city
+            city: City = City.find_human(human)
+            assert city is not None, "Human not found in a city."
+            # TODO Add `mobility_mode_preference` as an attribute in humans.
+            self.trip_plan = city.plan_trip(
+                source, destination, human.mobility_mode_preference
+            )
+            self.source = source
+            self.destination = destination
+
+    def take(self):
+        for transit in self.trip_plan:
+            with transit.request as request:
+                yield request
+                yield self.env.process(self.human.at(transit, transit.travel_time))
+        return self
+
 
 if __name__ == "__main__":
     env = Env(datetime.datetime(2020, 2, 28, 0, 0))
@@ -237,3 +328,4 @@ if __name__ == "__main__":
         destination=city.locations[1],
         mobility_mode_preference={mcfg.WALKING: 2.0, mcfg.BUS: 1.0},
     )
+

@@ -76,6 +76,9 @@ class MobilityMode(object):
         return self.min_distance <= distance <= self.max_distance
 
     def favorability_given_distance(self, distance):
+        if distance < self.min_distance or distance > self.max_distance:
+            return MobilityMode.IsFavorable.NO
+
         return max(
             [
                 favoribility
