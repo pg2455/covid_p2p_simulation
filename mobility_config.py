@@ -1,6 +1,8 @@
 import weakref
-from simpy.core import Infinity
 import pint
+from addict import Dict
+
+from simpy.core import Infinity
 
 
 # Measurement units
@@ -14,6 +16,12 @@ H = UREG.hour
 MIN = UREG.minute
 TIME_UNIT = UREG.hour
 
+# Default lat-long range
+DEFAULT_CITY = Dict()
+DEFAULT_CITY.COORD.NORTH.LAT = 48.534169
+DEFAULT_CITY.COORD.SOUTH.LAT = 48.481084
+DEFAULT_CITY.COORD.WEST.LON = 9.024333
+DEFAULT_CITY.COORD.EAST.LON = 9.098703
 
 # -------------------------------------------------------------------------------------
 
@@ -93,6 +101,7 @@ WALKING = MobilityMode(
     name="walking",
     max_distance=3 * KM,
     min_distance=0 * KM,
+    speed=5 * KM / H,
     favorability_distance_profile={
         (0 * KM, 1 * KM): MobilityMode.IsFavorable.VERY,
         (1 * KM, 1.5 * KM): MobilityMode.IsFavorable.RATHER,
@@ -108,6 +117,7 @@ BUS = MobilityMode(
     max_distance=30 * KM,
     min_distance=500 * M,
     capacity=30,
+    speed=20 * KM / H,
     favorability_distance_profile={
         (500 * M, 2 * KM): MobilityMode.IsFavorable.MODERATELY,
         (2 * KM, 3 * KM): MobilityMode.IsFavorable.RATHER,
@@ -120,16 +130,18 @@ BUS = MobilityMode(
 )
 CAR = MobilityMode(
     name="car",
-    max_distance=float("inf"),
+    max_distance=1000 * KM,
     min_distance=0 * KM,
-    # Note that `capacity` here means the number of people that can move by car.
+    # Note that `capacity` here means the number of people that can move by car,
+    # which is as much as the road can support.
     capacity=1000,
+    speed=50 * KM / H,
     favorability_distance_profile={
         (0 * KM, 1 * KM): MobilityMode.IsFavorable.NO,
         (1 * KM, 3 * KM): MobilityMode.IsFavorable.RATHER_NOT,
         (3 * KM, 5 * KM): MobilityMode.IsFavorable.MODERATELY,
         (5 * KM, 10 * KM): MobilityMode.IsFavorable.RATHER,
-        (10 * KM, float("inf") * KM): MobilityMode.IsFavorable.VERY,
+        (10 * KM, 1000 * KM): MobilityMode.IsFavorable.VERY,
     },
     transmission_proba=0.0001,
 )

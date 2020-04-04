@@ -6,6 +6,7 @@ import itertools
 
 import simpy
 import networkx as nx
+from addict import Dict
 
 
 from utils import _draw_random_discreet_gaussian, compute_distance, get_random_word
@@ -83,6 +84,9 @@ class Location(simpy.Resource):
     def __hash__(self):
         return hash(self.name)
 
+    def __eq__(self, other):
+        return self.name == other.name
+
     @classmethod
     def random_location(
         cls,
@@ -95,8 +99,12 @@ class Location(simpy.Resource):
             env=env,
             capacity=capacity,
             name=get_random_word(),
-            lat=random.randint(0, city_size) * mcfg.SPACE_UNIT,
-            lon=random.randint(0, city_size) * mcfg.SPACE_UNIT,
+            lat=random.uniform(
+                mcfg.DEFAULT_CITY.COORD.SOUTH.LAT, mcfg.DEFAULT_CITY.COORD.NORTH.LAT
+            ),
+            lon=random.uniform(
+                mcfg.DEFAULT_CITY.COORD.WEST.LON, mcfg.DEFAULT_CITY.COORD.EAST.LON
+            ),
             cont_prob=(cont_prob or random.uniform(0, 1)),
             location_type="misc",
         )
@@ -122,11 +130,6 @@ class Transit(Location):
             # FIXME This should entail counting the number of humans
             cont_prob=mobility_mode.transmission_proba,
         )
-
-
-class TransitChain(Location):
-    def __init__(self, env: Env, stops: List[Transit]):
-        pass
 
 
 class City(object):
@@ -166,10 +169,68 @@ class City(object):
         destination: Location,
         mobility_mode_preference: Mapping[mcfg.MobilityMode, int],
     ) -> List[Transit]:
-        # TODO Compute Dijkstra path weighted by preference
-        pass
+
+        if destination == source:
+            return []
+        favorite_modes = Dict()
+
+        # The weight function provides a measure of "distance" for Djikstra
+        def weight_fn(u, v, d):
+            global favorite_modes
+            # First case is when the mobility mode is not supported
+            if not set(d.keys()).intersection(set(mobility_mode_preference.keys())):
+                # This means that mobility_mode_preference does not specify
+                # a preference for this mode, so we assume that the edge cannot
+                # be traversed. Returning None tells networkx just that.
+                return None
+            # TODO Make mode_weights depend on travel_time, which in turn depends
+            #  on the speed of mobility mode.
+            # We assume that the preference is a multiplier.
+            raw_distance = d["raw_distance"]
+            mode_favorabilities = {
+                mode: mode.favorability_given_distance(raw_distance)
+                for mode in mobility_mode_preference
+            }
+            mode_weights = {
+                mode: favorability / mobility_mode_preference[mode]
+                for mode, favorability in mode_favorabilities.items()
+            }
+            # Record the favorite mode
+            min_weight = min(list(mode_weights.values()))
+            favorite_mode = [
+                mode for mode, weight in mode_weights.items() if weight == min_weight
+            ][0]
+            favorite_modes[u][v] = favorite_mode
+            return min_weight
+
+        try:
+            # Now get that Djikstra path!
+            djikstra_path = nx.dijkstra_path(
+                self.graph, source, destination, weight=weight_fn
+            )
+        except nx.exception.NetworkXNoPath:
+            # No path; destination might have to be resampled
+            return []
+        # Convert path to transits and return
+        transits = []
+        for transit_source, transit_destination in zip(
+            djikstra_path, djikstra_path[1:]
+        ):
+            favorite_transit_mode = favorite_modes[transit_source][transit_destination]
+            transit = self.graph[transit_source][transit_destination][
+                favorite_transit_mode
+            ]["transit"]
+            transits.append(transit)
+
+        return transits
 
 
 if __name__ == "__main__":
     env = Env(datetime.datetime(2020, 2, 28, 0, 0))
     city = City(env, [Location.random_location(env) for _ in range(100)])
+    # noinspection PyTypeChecker
+    plan = city.plan_trip(
+        source=city.locations[0],
+        destination=city.locations[1],
+        mobility_mode_preference={mcfg.WALKING: 2.0, mcfg.BUS: 1.0},
+    )
