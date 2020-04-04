@@ -84,6 +84,9 @@ class MobilityMode(object):
             ]
         )
 
+    def travel_time(self, distance):
+        return distance / self.speed
+
     @classmethod
     def get_all_mobility_modes(cls):
         dead = set()

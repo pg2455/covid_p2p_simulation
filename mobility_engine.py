@@ -183,19 +183,22 @@ class City(object):
                 # a preference for this mode, so we assume that the edge cannot
                 # be traversed. Returning None tells networkx just that.
                 return None
-            # TODO Make mode_weights depend on travel_time, which in turn depends
-            #  on the speed of mobility mode.
             # We assume that the preference is a multiplier.
-            raw_distance = d["raw_distance"]
-            mode_favorabilities = {
-                mode: mode.favorability_given_distance(raw_distance)
-                for mode in mobility_mode_preference
-            }
+            raw_distance = d[next(iter(d.keys()))]["raw_distance"]
+
+            # This is an important component: it couples favorability,
+            # travel time (i.e. mode speed and distance) and preference.
+            def mode_weight_fn(mode: mcfg.MobilityMode):
+                weight = (
+                    mode.favorability_given_distance(raw_distance)
+                    * mode.travel_time(raw_distance).to("minute").magnitude
+                    / mobility_mode_preference[mode]
+                )
+                return weight
+
             mode_weights = {
-                mode: favorability / mobility_mode_preference[mode]
-                for mode, favorability in mode_favorabilities.items()
+                mode: mode_weight_fn(mode) for mode in mobility_mode_preference
             }
-            # Record the favorite mode
             min_weight = min(list(mode_weights.values()))
             favorite_mode = [
                 mode for mode, weight in mode_weights.items() if weight == min_weight

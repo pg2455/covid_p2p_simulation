@@ -1,3 +1,4 @@
+addict
 networkx
 pint
 scipy==1.4.1
