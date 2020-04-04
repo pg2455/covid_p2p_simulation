@@ -1,5 +1,21 @@
 import weakref
-from typing import Iterator
+from simpy.core import Infinity
+import pint
+
+
+# Measurement units
+UREG = pint.UnitRegistry()
+# Space
+M = UREG.meter
+KM = UREG.km
+SPACE_UNIT = 50 * M
+# Time
+H = UREG.hour
+MIN = UREG.minute
+TIME_UNIT = UREG.hour
+
+
+# -------------------------------------------------------------------------------------
 
 
 # Mobility modes
@@ -19,7 +35,8 @@ class MobilityMode(object):
         name,
         max_distance,
         min_distance=0,
-        capacity=float('inf'),
+        capacity=Infinity,
+        speed=50 * KM / H,
         favorability_distance_profile=None,
         transmission_proba=0.0,
     ):
@@ -28,6 +45,7 @@ class MobilityMode(object):
         self.max_distance = max_distance
         self.min_distance = min_distance
         self.capacity = capacity
+        self.speed = speed
         if favorability_distance_profile is None:
             self.favorability_distance_profile = {
                 (0, float("inf")): self.IsFavorable.VERY
@@ -70,46 +88,48 @@ class MobilityMode(object):
         cls._all_mobility_modes -= dead
 
 
+# Mobility modes
 WALKING = MobilityMode(
     name="walking",
-    max_distance=30,
-    min_distance=0,
+    max_distance=3 * KM,
+    min_distance=0 * KM,
     favorability_distance_profile={
-        (0, 10): MobilityMode.IsFavorable.VERY,
-        (10, 15): MobilityMode.IsFavorable.RATHER,
-        (15, 20): MobilityMode.IsFavorable.MODERATELY,
-        (20, 25): MobilityMode.IsFavorable.RATHER_NOT,
-        (25, 30): MobilityMode.IsFavorable.NO,
+        (0 * KM, 1 * KM): MobilityMode.IsFavorable.VERY,
+        (1 * KM, 1.5 * KM): MobilityMode.IsFavorable.RATHER,
+        (1.5 * KM, 2 * KM): MobilityMode.IsFavorable.MODERATELY,
+        (2 * KM, 2.5 * KM): MobilityMode.IsFavorable.RATHER_NOT,
+        (2.5 * KM, 3 * KM): MobilityMode.IsFavorable.NO,
     },
     transmission_proba=0.01,
 )
+# FIXME Refactor this to use standard units!!
 BUS = MobilityMode(
     name="bus",
-    max_distance=200,
-    min_distance=10,
+    max_distance=30 * KM,
+    min_distance=500 * M,
     capacity=30,
     favorability_distance_profile={
-        (10, 20): MobilityMode.IsFavorable.MODERATELY,
-        (20, 40): MobilityMode.IsFavorable.RATHER,
-        (50, 70): MobilityMode.IsFavorable.VERY,
-        (70, 100): MobilityMode.IsFavorable.RATHER,
-        (100, 150): MobilityMode.IsFavorable.RATHER_NOT,
-        (150, 200): MobilityMode.IsFavorable.NO,
+        (500 * M, 2 * KM): MobilityMode.IsFavorable.MODERATELY,
+        (2 * KM, 3 * KM): MobilityMode.IsFavorable.RATHER,
+        (3 * KM, 5 * KM): MobilityMode.IsFavorable.VERY,
+        (5 * KM, 8 * KM): MobilityMode.IsFavorable.RATHER,
+        (8 * KM, 10 * KM): MobilityMode.IsFavorable.RATHER_NOT,
+        (10 * KM, 30 * KM): MobilityMode.IsFavorable.NO,
     },
     transmission_proba=0.05,
 )
 CAR = MobilityMode(
     name="car",
-    max_distance=1000,
-    min_distance=30,
-    capacity=1,
+    max_distance=float("inf"),
+    min_distance=0 * KM,
+    # Note that `capacity` here means the number of people that can move by car.
+    capacity=1000,
     favorability_distance_profile={
-        (30, 50): MobilityMode.IsFavorable.NO,
-        (50, 70): MobilityMode.IsFavorable.RATHER_NOT,
-        (70, 100): MobilityMode.IsFavorable.MODERATELY,
-        (100, 200): MobilityMode.IsFavorable.RATHER,
-        (200, 500): MobilityMode.IsFavorable.VERY,
-        (500, 1000): MobilityMode.IsFavorable.MODERATELY,
+        (0 * KM, 1 * KM): MobilityMode.IsFavorable.NO,
+        (1 * KM, 3 * KM): MobilityMode.IsFavorable.RATHER_NOT,
+        (3 * KM, 5 * KM): MobilityMode.IsFavorable.MODERATELY,
+        (5 * KM, 10 * KM): MobilityMode.IsFavorable.RATHER,
+        (10 * KM, float("inf") * KM): MobilityMode.IsFavorable.VERY,
     },
-    transmission_proba=0.0,
+    transmission_proba=0.0001,
 )

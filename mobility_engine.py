@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Mapping
 
 import random
 import datetime
@@ -7,9 +7,11 @@ import itertools
 import simpy
 import networkx as nx
 
-from utils import _draw_random_discreet_gaussian, compute_distance
+
+from utils import _draw_random_discreet_gaussian, compute_distance, get_random_word
 from config import TICK_MINUTE
 import mobility_config as mcfg
+import mobility_utils as mutl
 
 
 class Env(simpy.Environment):
@@ -72,6 +74,8 @@ class Location(simpy.Resource):
         )
 
     def contamination_proba(self):
+        # FIXME Contamination probability of a location should decay with time since the last
+        #  infected human was around, at a rate that depends on the `location_type`.
         if not self.sick_human():
             return 0
         return self.cont_prob
@@ -79,26 +83,54 @@ class Location(simpy.Resource):
     def __hash__(self):
         return hash(self.name)
 
+    @classmethod
+    def random_location(
+        cls,
+        env: Env,
+        city_size: int = 1000,
+        capacity: float = simpy.core.Infinity,
+        cont_prob: float = None,
+    ):
+        location = cls(
+            env=env,
+            capacity=capacity,
+            name=get_random_word(),
+            lat=random.randint(0, city_size) * mcfg.SPACE_UNIT,
+            lon=random.randint(0, city_size) * mcfg.SPACE_UNIT,
+            cont_prob=(cont_prob or random.uniform(0, 1)),
+            location_type="misc",
+        )
+        return location
+
 
 class Transit(Location):
     def __init__(
-        self, env: Env, source: Location, destination: Location, mode: mcfg.MobilityMode
+        self,
+        env: Env,
+        source: Location,
+        destination: Location,
+        mobility_mode: mcfg.MobilityMode,
     ):
         self.source = source
         self.destination = destination
+        self.mobility_mode = mobility_mode
         super(Transit, self).__init__(
             env,
-            capacity=mode.capacity,
-            name=f"{source.name}--({mode.name})-->{destination.name}",
+            capacity=mobility_mode.capacity,
+            name=f"{source.name}--({mobility_mode.name})-->{destination.name}",
+            location_type="transit",
+            # FIXME This should entail counting the number of humans
+            cont_prob=mobility_mode.transmission_proba,
         )
 
 
 class TransitChain(Location):
-    pass
+    def __init__(self, env: Env, stops: List[Transit]):
+        pass
 
 
 class City(object):
-    def __init__(self, env, locations: List[Location]):
+    def __init__(self, env: Env, locations: List[Location]):
         self.env = env
         self.locations = locations
         # Prepare a graph over locations
@@ -112,20 +144,32 @@ class City(object):
         for source, destination in itertools.product(graph.nodes, graph.nodes):
             if (source, destination) in graph.edges:
                 continue
-            raw_distance = compute_distance(source, destination)
+            # To the edges, we're gonna add:
+            #   1. Raw distance,
+            #   2. A transit object (which is a location)
+            raw_distance = mutl.compute_geo_distance(source, destination)
             for mobility_mode in mcfg.MobilityMode.get_all_mobility_modes():
                 mobility_mode: mcfg.MobilityMode
                 if mobility_mode.is_compatible_with_distance(distance=raw_distance):
                     graph.add_edge(
-                        source, destination, mobility_mode, raw_distance=raw_distance,
+                        source,
+                        destination,
+                        mobility_mode,
+                        transit=Transit(self.env, source, destination, mobility_mode),
+                        raw_distance=raw_distance,
                     )
         self.graph = graph
 
-    def plan_trip(self, source: Location, destination: Location) -> List[Transit]:
-        # TODO
+    def plan_trip(
+        self,
+        source: Location,
+        destination: Location,
+        mobility_mode_preference: Mapping[mcfg.MobilityMode, int],
+    ) -> List[Transit]:
+        # TODO Compute Dijkstra path weighted by preference
         pass
 
 
 if __name__ == "__main__":
     env = Env(datetime.datetime(2020, 2, 28, 0, 0))
-    city_limit = ((0, 1000), (0, 1000))
+    city = City(env, [Location.random_location(env) for _ in range(100)])
