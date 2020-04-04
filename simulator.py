@@ -110,10 +110,9 @@ class Human(object):
         # Assume 2 weeks incubation time ; in 10% of cases person becomes to sick
         # to go shopping after 2 weeks for at least 10 days and in 1% of the cases
         # never goes shopping again.
-        time_since_sick_delta = (env.timestamp - self.infection_timestamp).days
+        time_since_sick_delta = (self.env.timestamp - self.infection_timestamp).days
         in_peak_illness_time = (
-                time_since_sick >= self.incubation_days and
-                time_since_sick <= (self.incubation_days + NUM_DAYS_SICK))
+                self.incubation_days <= time_since_sick_delta <= (self.incubation_days + NUM_DAYS_SICK))
         return (in_peak_illness_time or self.never_recovers) and self.really_sick
 
     @property
@@ -373,7 +372,6 @@ class Human(object):
                     yield self.env.process(self.at(loc, t))
         else:
             raise ValueError(f'Unknown excursion type:{type}')
-
 
     def at(self, location, duration):
         if self.name == 1:
