@@ -60,13 +60,15 @@ class Location(simpy.Resource):
             return 0
         return self.cont_prob
 
-    contamination_probability = contamination_proba
+    @property
+    def contamination_probability(self):
+        return self.contamination_proba()
 
     def __hash__(self):
         return hash(self.name)
 
     def __eq__(self, other):
-        return self.name == other.name
+        return isinstance(other, type(self)) and self.name == other.name
 
     @classmethod
     def random_location(
@@ -323,9 +325,7 @@ class City(object):
                 )
                 return weight
 
-            mode_weights = {
-                mode: mode_weight_fn(mode) for mode in valid_mobility_modes
-            }
+            mode_weights = {mode: mode_weight_fn(mode) for mode in valid_mobility_modes}
             min_weight = min(list(mode_weights.values()))
             favorite_mode = [
                 mode for mode, weight in mode_weights.items() if weight == min_weight
@@ -379,6 +379,10 @@ class City(object):
         for location in self.locations:
             humans.update(location.humans)
         return humans
+
+    @property
+    def events(self):
+        return list(itertools.chain(*[h.events for h in self.humans]))
 
     def _compute_preferences(self):
         for human in self.humans:

@@ -40,6 +40,10 @@ class StateMonitor(BaseMonitor):
 
 class SEIRMonitor(BaseMonitor):
 
+    def __init__(self, *args, **kwargs):
+        self.verbose = kwargs.pop('verbose', False)
+        super(SEIRMonitor, self).__init__(*args, **kwargs)
+
     def run(self, env, city: City):
 
         while True:
@@ -51,7 +55,8 @@ class SEIRMonitor(BaseMonitor):
                 I += h.is_infectious
                 R += h.is_removed
                 R0 += h.r0
-
+            if self.verbose:
+                print(f"{env.timestamp} >>> S = {S} - E = {E} - I = {E} - R = {R} <<<")
             self.data.append({
                     'time': env.timestamp,
                     'susceptible': S,

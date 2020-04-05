@@ -182,7 +182,7 @@ class MobilityBehaviourMixin(_object):
                 )
         else:
             raise ValueError(f"Unknown excursion type:{type}")
-        self._execute_excursions(city, sub_excursions)
+        return self._execute_excursions(city, sub_excursions)
 
     def _execute_excursions(self, city: "City", excursions: List[ExcursionType]):
         for excursion in excursions:
@@ -210,11 +210,13 @@ class MobilityBehaviourMixin(_object):
     def _compute_preferences(self, city: "City"):
         # This was previously in `City`, but this seems like a better place
         self.stores_preferences = [
-            (mutls.compute_geo_distance(self.household, s) + 1e-1) ** -1
+            (mutls.compute_geo_distance(self.household, s).to("km").magnitude + 1e-1)
+            ** -1
             for s in city.stores
         ]
-        self.stores_preferences = [
-            (mutls.compute_geo_distance(self.household, s) + 1e-1) ** -1
+        self.parks_preferences = [
+            (mutls.compute_geo_distance(self.household, s).to("km").magnitude + 1e-1)
+            ** -1
             for s in city.parks
         ]
 
@@ -249,7 +251,7 @@ class MobilityBehaviourMixin(_object):
             S = self.visits.n_miscs
             self.adjust_gamma = 1.0
             pool_pref = [
-                (compute_distance(self.location, m) + 1e-1) ** -1
+                (mutls.compute_geo_distance(self.location, m).to('km').magnitude + 1e-1) ** -1
                 for m in city.miscs
                 if m != self.location
             ]
