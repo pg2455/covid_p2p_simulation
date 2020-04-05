@@ -79,6 +79,16 @@ class MobilityBehaviourMixin(_object):
         # TODO: multiple possible days and times & limit these activities in a week
         self.shopping_days = self.rng.choice(range(7))
         self.shopping_hours = self.rng.choice(range(7, 20))
+        self.number_of_shopping_days = _draw_random_discreet_gaussian(
+            AVG_NUM_SHOPPING_DAYS, SCALE_NUM_SHOPPING_DAYS, self.rng
+        )
+        self.number_of_shopping_hours = _draw_random_discreet_gaussian(
+            AVG_NUM_SHOPPING_HOURS, SCALE_NUM_SHOPPING_HOURS, self.rng
+        )
+        self.max_shop_per_week = _draw_random_discreet_gaussian(
+            AVG_MAX_NUM_SHOP_PER_WEEK, SCALE_MAX_NUM_SHOP_PER_WEEK, self.rng
+        )
+        self.count_shop = 0
         # ----- Exercise (outdoor) -----
         self.avg_exercise_time = _draw_random_discreet_gaussian(
             AVG_EXERCISE_MINUTES, SCALE_EXERCISE_MINUTES, self.rng
@@ -88,6 +98,16 @@ class MobilityBehaviourMixin(_object):
         )
         self.exercise_days = self.rng.choice(range(7))
         self.exercise_hours = self.rng.choice(range(7, 20))
+        self.number_of_exercise_days = _draw_random_discreet_gaussian(
+            AVG_NUM_EXERCISE_DAYS, SCALE_NUM_EXERCISE_DAYS, self.rng
+        )
+        self.number_of_exercise_hours = _draw_random_discreet_gaussian(
+            AVG_NUM_EXERCISE_HOURS, SCALE_NUM_EXERCISE_HOURS, self.rng
+        )
+        self.max_exercise_per_week = _draw_random_discreet_gaussian(
+            AVG_MAX_NUM_EXERCISE_PER_WEEK, SCALE_MAX_NUM_EXERCISE_PER_WEEK, self.rng
+        )
+        self.count_exercise = 0
         # ----- Work -----
         self.avg_working_hours = _draw_random_discreet_gaussian(
             AVG_WORKING_MINUTES, SCALE_WORKING_MINUTES, self.rng
@@ -251,7 +271,8 @@ class MobilityBehaviourMixin(_object):
             S = self.visits.n_miscs
             self.adjust_gamma = 1.0
             pool_pref = [
-                (mutls.compute_geo_distance(self.location, m).to('km').magnitude + 1e-1) ** -1
+                (mutls.compute_geo_distance(self.location, m).to("km").magnitude + 1e-1)
+                ** -1
                 for m in city.miscs
                 if m != self.location
             ]

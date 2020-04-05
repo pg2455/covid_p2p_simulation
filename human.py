@@ -16,10 +16,16 @@ class BaseHuman(object):
     location: Location
     work_start_hour: int
     excursion: Callable
+    # Shopping
     shopping_hours: int
     shopping_days: int
+    count_shop: int
+    max_shop_per_week: int
+    # Exercise
     exercise_hours: int
     exercise_days: int
+    max_exercise_per_week: int
+    count_exercise: int
 
     def __init__(
         self, *, env, name, age, rng, infection_timestamp, **_,
@@ -120,7 +126,8 @@ class BaseHuman(object):
 
     @property
     def test_results(self):
-        if self.symptoms == None:
+        # noinspection PyComparisonWithNone
+        if self.symptoms is None:
             return None
         else:
             tested = self.rng.rand() > P_TEST
@@ -296,7 +303,13 @@ class BaseHuman(object):
             self.assert_state_changes()
 
             # Mobility
+
             hour, day = self.env.hour_of_day(), self.env.day_of_week()
+
+            if day == 0:
+                self.count_exercise = 0
+                self.count_shop = 0
+
             if (
                 not WORK_FROM_HOME
                 and not self.env.is_weekend()
@@ -304,10 +317,20 @@ class BaseHuman(object):
             ):
                 yield self.env.process(self.excursion(city, "work"))
 
-            elif hour == self.shopping_hours and day == self.shopping_days:
+            elif (
+                hour in self.shopping_hours
+                and day in self.shopping_days
+                and self.count_shop <= self.max_shop_per_week
+            ):
+                self.count_shop += 1
                 yield self.env.process(self.excursion(city, "shopping"))
 
-            elif hour == self.exercise_hours and day == self.exercise_days:
+            elif (
+                hour in self.exercise_hours
+                and day in self.exercise_days
+                and self.count_exercise <= self.max_exercise_per_week
+            ):
+                self.count_exercise += 1
                 yield self.env.process(self.excursion(city, "exercise"))
 
             elif self.rng.random() < 0.05 and self.env.is_weekend():
@@ -328,13 +351,15 @@ class BaseHuman(object):
         location.humans.add(self)
         self.leaving_time = duration + self.env.now
         self.start_time = self.env.now
-
+        area = self.location.area
         # Report all the encounters
         for h in location.humans:
             if h == self or self.location.location_type == "household":
                 continue
 
-            distance = self.rng.randint(50, 1000)
+            distance = np.sqrt(
+                int(area / len(self.location.humans))
+            ) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
             t_near = min(self.leaving_time, h.leaving_time) - max(
                 self.start_time, h.start_time
             )
