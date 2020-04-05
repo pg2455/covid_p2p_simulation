@@ -301,11 +301,15 @@ class City(object):
         # The weight function provides a measure of "distance" for Djikstra
         def weight_fn(u, v, d):
             # First case is when the mobility mode is not supported
-            if not set(d.keys()).intersection(set(mobility_mode_preference.keys())):
+            valid_mobility_modes = set(d.keys()).intersection(
+                set(mobility_mode_preference.keys())
+            )
+            if not valid_mobility_modes:
                 # This means that mobility_mode_preference does not specify
                 # a preference for this mode, so we assume that the edge cannot
                 # be traversed. Returning None tells networkx just that.
                 return None
+
             # We assume that the preference is a multiplier.
             raw_distance = d[next(iter(d.keys()))]["raw_distance"]
 
@@ -313,14 +317,14 @@ class City(object):
             # travel time (i.e. mode speed and distance) and preference.
             def mode_weight_fn(mode: mcfg.MobilityMode):
                 weight = (
-                    mode.favorability_given_distance(raw_distance)
+                    (mode.favorability_given_distance(raw_distance) + 1)
                     * mode.travel_time(raw_distance).to("minute").magnitude
                     / mobility_mode_preference[mode]
                 )
                 return weight
 
             mode_weights = {
-                mode: mode_weight_fn(mode) for mode in mobility_mode_preference
+                mode: mode_weight_fn(mode) for mode in valid_mobility_modes
             }
             min_weight = min(list(mode_weights.values()))
             favorite_mode = [
