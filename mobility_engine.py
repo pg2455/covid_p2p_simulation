@@ -33,6 +33,7 @@ class Location(simpy.Resource):
         location_type="stores",
         lat=None,
         lon=None,
+        area=None,
         cont_prob=None,
     ):
         super().__init__(env, capacity)
@@ -40,29 +41,22 @@ class Location(simpy.Resource):
         self.name = name
         self.lat = lat
         self.lon = lon
+        self.area = area
         self.location_type = location_type
         self.cont_prob = cont_prob
 
-    def sick_human(self):
-        return any([h.is_sick for h in self.humans])
+    def infectious_human(self):
+        return any([h.is_infectious for h in self.humans])
 
     def __repr__(self):
-        return (
-            f"{self.location_type}:{self.name} - "
-            f"Total number of people in {self.location_type}:{len(self.humans)} "
-            f"- sick:{self.sick_human()}"
-        )
-
-    def contamination_proba(self):
-        # FIXME Contamination probability of a location should decay with time since the last
-        #  infected human was around, at a rate that depends on the `location_type`.
-        if not self.sick_human():
-            return 0
-        return self.cont_prob
+        return f"{self.name} - occ:{len(self.humans)}/{self.capacity}" \
+               f" - I:{self.infectious_human()}"
 
     @property
     def contamination_probability(self):
-        return self.contamination_proba()
+        if not self.infectious_human():
+            return 0
+        return self.cont_prob
 
     def __hash__(self):
         return hash(self.name)
