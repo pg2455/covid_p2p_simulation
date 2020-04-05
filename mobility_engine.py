@@ -12,7 +12,7 @@ from addict import Dict
 
 from utils import _draw_random_discreet_gaussian, compute_distance, get_random_word
 from config import TICK_MINUTE
-from simulator import Human
+from human import Human
 from base import Env
 import mobility_config as mcfg
 import mobility_utils as mutl
@@ -123,6 +123,7 @@ class City(object):
     _all_cities = set()
 
     def __init__(self, env: Env, locations: List[Location]):
+        # Publics
         self.env = env
         self.locations = locations
         # Prepare a graph over locations
@@ -245,16 +246,17 @@ class City(object):
     def miscs(self):
         return self.get_location_type("misc")
 
-    @classmethod
-    def get_all_cities(cls):
-        dead = set()
-        for ref in cls._all_cities:
-            obj = ref()
-            if obj is not None:
-                yield obj
-            else:
-                dead.add(ref)
-        cls._all_cities -= dead
+    @property
+    def humans(self):
+        humans = set()
+        for location in self.locations:
+            humans.update(location.humans)
+        return humans
+
+    def _compute_preferences(self):
+        for human in self.humans:
+            # noinspection PyProtectedMember
+            human._compute_preferences(self)
 
     def __contains__(self, item):
         if isinstance(item, Human):
@@ -278,6 +280,18 @@ class City(object):
         # TODO: Make a semirealistic city with stores, workplaces,
         #  households, etc.
         pass
+
+    @classmethod
+    def get_all_cities(cls):
+        dead = set()
+        for ref in cls._all_cities:
+            obj = ref()
+            if obj is not None:
+                yield obj
+            else:
+                dead.add(ref)
+        cls._all_cities -= dead
+
 
 
 class Trip(object):
