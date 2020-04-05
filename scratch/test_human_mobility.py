@@ -2,7 +2,8 @@ import datetime
 import numpy as np
 
 from base import Env
-from mobility_engine import City, Location
+from mobility_engine import City, Location, PublicTransitStation
+import mobility_config as mcfg
 from human import Human
 from utils import _get_random_age
 
@@ -36,7 +37,8 @@ if __name__ == "__main__":
         Location.random_location(env, capacity=30, location_type="misc")
         for _ in range(10)
     ]
-    city = City(env=env, locations=(stores + households + workplaces + miscs))
+    stations = [PublicTransitStation.random_station(env=env, mobility_mode=mcfg.BUS, capacity=10) for _ in range(10)]
+    city = City(env=env, locations=(stores + households + workplaces + miscs + stations))
 
     humans = [
         Human(

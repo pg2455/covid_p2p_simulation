@@ -12,10 +12,16 @@ from addict import Dict
 
 from utils import _draw_random_discreet_gaussian, compute_distance, get_random_word
 from config import TICK_MINUTE
-from human import Human
 from base import Env
 import mobility_config as mcfg
 import mobility_utils as mutl
+
+# This is to prevent circular imports
+# noinspection PyUnreachableCode
+if False:
+    from human import Human
+else:
+    Human = type
 
 
 class Location(simpy.Resource):
@@ -87,6 +93,57 @@ class Location(simpy.Resource):
         return location
 
 
+class PublicTransitStation(Location):
+    def __init__(
+        self,
+        env: Env,
+        mobility_mode: mcfg.MobilityMode,
+        capacity: int = simpy.core.Infinity,
+        name: str = get_random_word(6),
+        lat: float = None,
+        lon: float = None,
+        cont_prob: float = None,
+    ):
+        assert (
+            mobility_mode.fixed_routes
+        ), f"Mobility mode {mobility_mode} does not require fixed routes."
+        name = f"{mobility_mode.name}_stop_{name}"
+        super(PublicTransitStation, self).__init__(
+            env=env,
+            capacity=capacity,
+            name=name,
+            location_type="public_transit_station",
+            lat=lat,
+            lon=lon,
+            cont_prob=cont_prob,
+        )
+        self.mobility_mode = mobility_mode
+
+    @classmethod
+    def random_station(
+        cls,
+        env: Env,
+        mobility_mode: mcfg.MobilityMode,
+        city_limits: Dict = mcfg.DEFAULT_CITY,
+        capacity: float = simpy.core.Infinity,
+        cont_prob: float = None,
+    ):
+        transit_station = cls(
+            env=env,
+            mobility_mode=mobility_mode,
+            capacity=capacity,
+            name=get_random_word(),
+            lat=random.uniform(
+                city_limits.COORD.SOUTH.LAT, mcfg.DEFAULT_CITY.COORD.NORTH.LAT
+            ),
+            lon=random.uniform(
+                city_limits.COORD.WEST.LON, mcfg.DEFAULT_CITY.COORD.EAST.LON
+            ),
+            cont_prob=(cont_prob or random.uniform(0, 1)),
+        )
+        return transit_station
+
+
 class Transit(Location):
     def __init__(
         self,
@@ -94,6 +151,7 @@ class Transit(Location):
         source: Location,
         destination: Location,
         mobility_mode: mcfg.MobilityMode,
+        num_routes: int = 1,
     ):
         # Privates
         self._travel_time = None
@@ -101,6 +159,7 @@ class Transit(Location):
         self.source = source
         self.destination = destination
         self.mobility_mode = mobility_mode
+        self.num_routes = num_routes
         super(Transit, self).__init__(
             env,
             capacity=mobility_mode.capacity,
@@ -122,18 +181,33 @@ class Transit(Location):
 class City(object):
     _all_cities = set()
 
-    def __init__(self, env: Env, locations: List[Location]):
+    def __init__(
+        self, env: Env, locations: List[Location], graph: nx.MultiGraph = None
+    ):
         # Publics
         self.env = env
         self.locations = locations
-        # Prepare a graph over locations
-        self._build_graph()
+        if graph is None:
+            # Prepare a random graph over locations
+            self._build_graph()
+        else:
+            assert isinstance(
+                graph, nx.MultiGraph
+            ), "Graph must be an instance of nx.MultiGraph"
+            self.graph = graph
         self._all_cities.add(weakref.ref(self))
 
     def _build_graph(self):
         graph = nx.MultiGraph()
         # Add stores, parks, households as nodes
         graph.add_nodes_from(self.locations)
+        # To connect nodes and build the graph, we'll do the following.
+        #   1. We'll try to connect all nodes with each other with the
+        #      non-fixed-route mobility modes, if the distance is ok.
+        #   2. We'll connect the public transport nodes (with the
+        #      corresponding edges).
+        # Record of the distances (which we'll need later)
+        distances = Dict()
         # Edges between nodes are annotated by mobility modes
         for source, destination in itertools.product(graph.nodes, graph.nodes):
             if (source, destination) in graph.edges:
@@ -142,14 +216,20 @@ class City(object):
             if source == destination:
                 continue
             # If the geo distance between two nodes can be supported by an
-            # available mobility mode, we add it as a labelled edge in the
-            # multi-graph. Moreover, we label the edges with the following:
+            # available mobility mode without a fixed route, we add it as
+            # a labelled edge in the multi-graph. Moreover, we label the edges
+            # with the following:
             #   1. Raw distance,
             #   2. A transit object (which is a location)
-            raw_distance = mutl.compute_geo_distance(source, destination)
+            distances[source][destination] = raw_distance = mutl.compute_geo_distance(
+                source, destination
+            )
             for mobility_mode in mcfg.MobilityMode.get_all_mobility_modes():
                 mobility_mode: mcfg.MobilityMode
-                if mobility_mode.is_compatible_with_distance(distance=raw_distance):
+                if (
+                    mobility_mode.is_compatible_with_distance(distance=raw_distance)
+                    and not mobility_mode.fixed_routes
+                ):
                     graph.add_edge(
                         source,
                         destination,
@@ -157,6 +237,49 @@ class City(object):
                         transit=Transit(self.env, source, destination, mobility_mode),
                         raw_distance=raw_distance,
                     )
+        # Connect the public transits
+        public_transit_stations = [
+            node for node in graph.nodes if isinstance(node, PublicTransitStation)
+        ]
+        for source in public_transit_stations:
+            # Find the closest destination that compatible and not connected
+            closest_destination = None
+            distance_to_closest_destination = 10e10 * mcfg.KM
+            for destination in public_transit_stations:
+                if source == destination:
+                    continue
+                if source.mobility_mode != destination.mobility_mode:
+                    # Source and destination are of two different modes.
+                    continue
+                mobility_mode = source.mobility_mode
+                if (source, destination) in graph.edges and mobility_mode in graph[
+                    source
+                ][destination]:
+                    # Source and destination are already connected by their respective
+                    # mobility mode, nothing to do here.
+                    continue
+                if not mobility_mode.is_compatible_with_distance(
+                    distances[source][destination]
+                ):
+                    # Destination too far away
+                    continue
+                # Compute distance between destinations
+                if distances[source][destination] < distance_to_closest_destination:
+                    distance_to_closest_destination = distances[source][destination]
+                    closest_destination = destination
+            if closest_destination is None:
+                # No good destination found :(
+                continue
+            # Found the best destination, now we need to connect them.
+            graph.add_edge(
+                source,
+                closest_destination,
+                source.mobility_mode,
+                transit=Transit(
+                    self.env, source, closest_destination, source.mobility_mode
+                ),
+                raw_distance=distances[source][closest_destination],
+            )
         self.graph = graph
 
     def plan_trip(
@@ -259,6 +382,8 @@ class City(object):
             human._compute_preferences(self)
 
     def __contains__(self, item):
+        from human import Human
+
         if isinstance(item, Human):
             return item.location in self.locations
         elif isinstance(item, Location):
@@ -291,7 +416,6 @@ class City(object):
             else:
                 dead.add(ref)
         cls._all_cities -= dead
-
 
 
 class Trip(object):

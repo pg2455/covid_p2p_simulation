@@ -1,6 +1,7 @@
 import weakref
 import pint
 from addict import Dict
+import random
 
 from simpy.core import Infinity
 
@@ -45,6 +46,7 @@ class MobilityMode(object):
         min_distance=0,
         capacity=Infinity,
         speed=50 * KM / H,
+        fixed_route=False,
         favorability_distance_profile=None,
         transmission_proba=0.0,
     ):
@@ -54,6 +56,7 @@ class MobilityMode(object):
         self.min_distance = min_distance
         self.capacity = capacity
         self.speed = speed
+        self.fixed_routes = fixed_route
         if favorability_distance_profile is None:
             self.favorability_distance_profile = {
                 (0, float("inf")): self.IsFavorable.VERY
@@ -71,6 +74,9 @@ class MobilityMode(object):
 
     def __repr__(self):
         return str(self.name)
+
+    def __eq__(self, other):
+        return isinstance(other, type(self)) and self.name == other.name
 
     def is_compatible_with_distance(self, distance):
         return self.min_distance <= distance <= self.max_distance
@@ -124,6 +130,7 @@ BUS = MobilityMode(
     min_distance=500 * M,
     capacity=30,
     speed=20 * KM / H,
+    fixed_route=True,
     favorability_distance_profile={
         (500 * M, 2 * KM): MobilityMode.IsFavorable.MODERATELY,
         (2 * KM, 3 * KM): MobilityMode.IsFavorable.RATHER,
@@ -131,6 +138,23 @@ BUS = MobilityMode(
         (5 * KM, 8 * KM): MobilityMode.IsFavorable.RATHER,
         (8 * KM, 10 * KM): MobilityMode.IsFavorable.RATHER_NOT,
         (10 * KM, 30 * KM): MobilityMode.IsFavorable.NO,
+    },
+    transmission_proba=0.05,
+)
+SUBWAY = MobilityMode(
+    name="subway",
+    max_distance=50 * KM,
+    min_distance=500 * M,
+    capacity=200,
+    speed=80 * KM / H,
+    fixed_route=True,
+    favorability_distance_profile={
+        (500 * M, 1 * KM): MobilityMode.IsFavorable.NO,
+        (1 * KM, 2 * KM): MobilityMode.IsFavorable.RATHER_NOT,
+        (2 * KM, 3 * KM): MobilityMode.IsFavorable.MODERATELY,
+        (3 * KM, 20 * KM): MobilityMode.IsFavorable.VERY,
+        (20 * KM, 30 * KM): MobilityMode.IsFavorable.RATHER,
+        (30 * KM, 50 * KM): MobilityMode.IsFavorable.MODERATELY,
     },
     transmission_proba=0.05,
 )

@@ -4,8 +4,10 @@ from contextlib import suppress
 
 from config import *
 from utils import _draw_random_discreet_gaussian, _normalize_scores
+
 import mobility_config as mcfg
 from mobility_engine import Trip
+import mobility_utils as mutls
 
 # -------------------------------------------------------------------------------------
 # This is here to trick pycharm to give me auto-complete
@@ -101,6 +103,9 @@ class MobilityBehaviourMixin(_object):
         self.scale_misc_time = _draw_random_discreet_gaussian(
             AVG_SCALE_MISC_MINUTES, SCALE_SCALE_MISC_MINUTES, self.rng
         )
+        # Compute preferences
+        self.parks_preferences = None
+        self.stores_preferences = None
 
     @property
     def lat(self):
@@ -202,12 +207,30 @@ class MobilityBehaviourMixin(_object):
                     self.at(location=excursion.location, duration=excursion.duration)
                 )
 
+    def _compute_preferences(self, city: "City"):
+        # This was previously in `City`, but this seems like a better place
+        self.stores_preferences = [
+            (mutls.compute_geo_distance(self.household, s) + 1e-1) ** -1
+            for s in city.stores
+        ]
+        self.stores_preferences = [
+            (mutls.compute_geo_distance(self.household, s) + 1e-1) ** -1
+            for s in city.parks
+        ]
+
     def _select_location(self, location_type: str, city: "City"):
         """
         Preferential exploration treatment to visit places
         rho, gamma are treated in the paper for normal trips
         Here gamma is multiplied by a factor to supress exploration for parks, stores.
         """
+        if location_type in ["park", "stores"] and None in [
+            self.parks_preferences,
+            self.stores_preferences,
+        ]:
+            # This must be done once / human
+            self._compute_preferences(city)
+
         if location_type == "park":
             S = self.visits.n_parks
             self.adjust_gamma = 1.0
