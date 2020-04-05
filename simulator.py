@@ -406,7 +406,7 @@ class Human(object):
             # print(self, self.env.timestamp.strftime("%b %d, %H %M"), self.location)
             # print(self.env.timestamp.strftime("%b %d, %H %M"), self.location._name, "-->", location._name, duration)
             pass
-
+        self.location.recent_humans.append({'human': self, 'leaving_time': self.env.now})
         self.location = location
         location.humans.add(self)
         self.leaving_time = duration + self.env.now

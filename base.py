@@ -3,6 +3,9 @@ import datetime
 import itertools
 from config import TICK_MINUTE
 from utils import compute_distance
+from collections import deque
+import numpy as np
+
 
 class Env(simpy.Environment):
 
@@ -66,6 +69,8 @@ class Location(simpy.Resource):
         self.area = area
         self.location_type = location_type
         self.cont_prob = cont_prob
+        self.recent_humans = deque(maxlen=50)
+        self.env = env
 
     def infectious_human(self):
         return any([h.is_infectious for h in self.humans])
@@ -75,9 +80,18 @@ class Location(simpy.Resource):
 
     @property
     def contamination_probability(self):
-        if not self.infectious_human():
-            return 0
-        return self.cont_prob
+        weights = []
+        values = []
+        for elem in self.recent_humans:
+            values.append(elem['human'].infectiousness)
+            weights.append(1 / (self.env.now - elem['leaving_time'] + 1))
+        contam_history = np.average(values, weights=weights)
+        contam_present = []
+        for h in self.humans:
+            contam_present.append(h.infectiousness)
+        contam_current = np.mean(contam_present)
+        mixed_contam = 0.5 * contam_history + 0.5 * contam_current
+        return mixed_contam
 
     def __hash__(self):
         return hash(self.name)
