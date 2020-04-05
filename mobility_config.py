@@ -103,6 +103,7 @@ class MobilityMode(object):
 
 
 # Mobility modes
+# To add a new mode, just fill these in:
 WALKING = MobilityMode(
     name="walking",
     max_distance=3 * KM,
@@ -117,7 +118,6 @@ WALKING = MobilityMode(
     },
     transmission_proba=0.01,
 )
-# FIXME Refactor this to use standard units!!
 BUS = MobilityMode(
     name="bus",
     max_distance=30 * KM,
@@ -148,6 +148,24 @@ CAR = MobilityMode(
         (3 * KM, 5 * KM): MobilityMode.IsFavorable.MODERATELY,
         (5 * KM, 10 * KM): MobilityMode.IsFavorable.RATHER,
         (10 * KM, 1000 * KM): MobilityMode.IsFavorable.VERY,
+    },
+    transmission_proba=0.0001,
+)
+BIKE = MobilityMode(
+    name="bike",
+    max_distance=20 * KM,
+    min_distance=500 * M,
+    # Again, `capacity` here means the number of people that can move by bike,
+    # which is as much as the bike lanes support (laughs in dutch).
+    capacity=1000,
+    speed=20 * KM / H,
+    favorability_distance_profile={
+        (0 * KM, 1 * KM): MobilityMode.IsFavorable.MODERATELY,
+        (1 * KM, 3 * KM): MobilityMode.IsFavorable.RATHER,
+        (3 * KM, 5 * KM): MobilityMode.IsFavorable.VERY,
+        (5 * KM, 10 * KM): MobilityMode.IsFavorable.RATHER,
+        (10 * KM, 15 * KM): MobilityMode.IsFavorable.RATHER_NOT,
+        (15 * KM, 20 * KM): MobilityMode.IsFavorable.NO,
     },
     transmission_proba=0.0001,
 )
