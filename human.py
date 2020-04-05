@@ -357,9 +357,12 @@ class BaseHuman(object):
             if h == self or self.location.location_type == "household":
                 continue
 
-            distance = np.sqrt(
-                int(area / len(self.location.humans))
-            ) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
+            if area is not None:
+                distance = np.sqrt(
+                    int(area / len(self.location.humans))
+                ) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
+            else:
+                distance = self.rng.randint(50, 1000)
             t_near = min(self.leaving_time, h.leaving_time) - max(
                 self.start_time, h.start_time
             )
