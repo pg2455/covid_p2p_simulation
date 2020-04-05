@@ -1,12 +1,18 @@
-from collections import defaultdict
+from typing import List
+from collections import defaultdict, namedtuple
+from contextlib import suppress
 
 from config import *
 from utils import _draw_random_discreet_gaussian, _normalize_scores
+import mobility_config as mcfg
+from mobility_engine import Trip
+
 # -------------------------------------------------------------------------------------
 # This is here to trick pycharm to give me auto-complete
 # noinspection PyUnreachableCode
 if False:
     from human import BaseHuman as _object
+    from mobility_engine import City
 else:
     _object = object
 
@@ -29,6 +35,10 @@ class Visits:
         return len(self.miscs)
 
 
+# TODO Make a new class to handle `ExcursionType`
+ExcursionType = namedtuple("ExcursionType", ["location", "duration", "request"])
+
+
 # This class is a mixin and should not inherit from anyone. If it does, it's probably
 # because someone (Nasim) forgot to get rid of the superclass...
 class MobilityBehaviourMixin(_object):
@@ -44,6 +54,16 @@ class MobilityBehaviourMixin(_object):
         self.visits = Visits()
 
         # Mobility habits:
+        # ----- Modes -----
+        # First we get a random "baseline", which we update based on parameters
+        # from config file.
+        self.mobility_mode_preference = {
+            mode: self.rng.random()
+            for mode in mcfg.MobilityMode.get_all_mobility_modes()
+        }
+        if self.rng.random() > P_HAS_CAR:
+            # Account for people who don't own cars
+            self.mobility_mode_preference.pop(mcfg.CAR)
         # ----- Exploration -----
         self.rho = kwargs.get("rho", 0.3)
         self.gamma = kwargs.get("gamma", 0.21)
@@ -82,17 +102,14 @@ class MobilityBehaviourMixin(_object):
             AVG_SCALE_MISC_MINUTES, SCALE_SCALE_MISC_MINUTES, self.rng
         )
 
-# TODO Move to MobilityBehaviourMixin
     @property
     def lat(self):
         return self.location.lat if self.location else self.household.lat
 
-    # TODO Move to MobilityBehaviourMixin
     @property
     def lon(self):
         return self.location.lon if self.location else self.household.lon
 
-    # TODO Move to MobilityBehaviourMixin
     @property
     def obs_lat(self):
         if LOCATION_TECH == "bluetooth":
@@ -100,7 +117,6 @@ class MobilityBehaviourMixin(_object):
         else:
             return round(self.lat + self.rng.normal(0, 10))
 
-    # TODO Move to MobilityBehaviourMixin
     @property
     def obs_lon(self):
         if LOCATION_TECH == "bluetooth":
@@ -108,53 +124,85 @@ class MobilityBehaviourMixin(_object):
         else:
             return round(self.lon + self.rng.normal(0, 10))
 
-    # TODO Move to MobilityBehaviourMixin
-    def excursion(self, city, type):
+    def excursion(self, city: "City", type: str):
+        sub_excursions = []
 
         if type == "shopping":
-            grocery_store = self._select_location(location_type="stores", city=city)
-            t = _draw_random_discreet_gaussian(
+            location = self._select_location(location_type="stores", city=city)
+            duration = _draw_random_discreet_gaussian(
                 self.avg_shopping_time, self.scale_shopping_time, self.rng
             )
-            with grocery_store.request() as request:
-                yield request
-                yield self.env.process(self.at(grocery_store, t))
+            sub_excursions.append(
+                ExcursionType(location=location, duration=duration, request=True)
+            )
 
         elif type == "exercise":
-            park = self._select_location(location_type="park", city=city)
-            t = _draw_random_discreet_gaussian(
+            location = self._select_location(location_type="park", city=city)
+            duration = _draw_random_discreet_gaussian(
                 self.avg_exercise_time, self.scale_exercise_time, self.rng
             )
-            yield self.env.process(self.at(park, t))
+            sub_excursions.append(
+                ExcursionType(location=location, duration=duration, request=False)
+            )
 
         elif type == "work":
-            t = _draw_random_discreet_gaussian(
+            location = self.workplace
+            duration = _draw_random_discreet_gaussian(
                 self.avg_working_hours, self.scale_working_hours, self.rng
             )
-            yield self.env.process(self.at(self.workplace, t))
+            sub_excursions.append(
+                ExcursionType(location=location, duration=duration, request=False)
+            )
 
         elif type == "leisure":
             S = 0
             p_exp = 1.0
             while True:
                 if self.rng.random() > p_exp:  # return home
-                    yield self.env.process(self.at(self.household, 60))
+                    sub_excursions.append(
+                        ExcursionType(
+                            location=self.household, duration=60, request=False
+                        )
+                    )
                     break
 
-                loc = self._select_location(location_type="miscs", city=city)
+                location = self._select_location(location_type="miscs", city=city)
                 S += 1
                 p_exp = self.rho * S ** (-self.gamma * self.adjust_gamma)
-                with loc.request() as request:
-                    yield request
-                    t = _draw_random_discreet_gaussian(
-                        self.avg_misc_time, self.scale_misc_time, self.rng
-                    )
-                    yield self.env.process(self.at(loc, t))
+                duration = _draw_random_discreet_gaussian(
+                    self.avg_misc_time, self.scale_misc_time, self.rng
+                )
+                sub_excursions.append(
+                    ExcursionType(location=location, duration=duration, request=True)
+                )
         else:
             raise ValueError(f"Unknown excursion type:{type}")
+        self._execute_excursions(city, sub_excursions)
 
-# TODO Move to MobilityBehaviourMixin
-    def _select_location(self, location_type, city):
+    def _execute_excursions(self, city: "City", excursions: List[ExcursionType]):
+        for excursion in excursions:
+            # Plan a trip from current location to the excursion location
+            # noinspection PyTypeChecker
+            trip = Trip(
+                env=self.env,
+                human=self,
+                source=self.location,
+                destination=excursion.location,
+                city=city,
+            )
+            # Take the trip
+            trip.take()
+            # Now the excursion location may or may not require a request, so...
+            requester = excursion.location.request if excursion.request else suppress
+            # Stay at the excursion location for however long requested
+            with requester() as request:
+                if request is not None:
+                    yield request
+                yield self.env.process(
+                    self.at(location=excursion.location, duration=excursion.duration)
+                )
+
+    def _select_location(self, location_type: str, city: "City"):
         """
         Preferential exploration treatment to visit places
         rho, gamma are treated in the paper for normal trips
@@ -206,4 +254,3 @@ class MobilityBehaviourMixin(_object):
         loc = self.rng.choice(cands, p=_normalize_scores(scores))
         visited_locs[loc] += 1
         return loc
-

@@ -290,6 +290,7 @@ class Trip(object):
         trip_plan: List[Transit] = None,
         source: Location = None,
         destination: Location = None,
+        city: City = None,
     ):
         self.env = env
         self.human = human
@@ -303,8 +304,9 @@ class Trip(object):
                 destination,
             ], "Both source and destination must be provided in order to plan a trip."
             # Find human's city
-            city: City = City.find_human(human)
+            city: City = City.find_human(human) if city is None else city
             assert city is not None, "Human not found in a city."
+            assert human in city, f"Human {human} not found in city {city}."
             # TODO Add `mobility_mode_preference` as an attribute in humans.
             self.trip_plan = city.plan_trip(
                 source, destination, human.mobility_mode_preference
@@ -314,7 +316,7 @@ class Trip(object):
 
     def take(self):
         for transit in self.trip_plan:
-            with transit.request as request:
+            with transit.request() as request:
                 yield request
                 yield self.env.process(self.human.at(transit, transit.travel_time))
         return self
