@@ -13,38 +13,9 @@ from addict import Dict
 from utils import _draw_random_discreet_gaussian, compute_distance, get_random_word
 from config import TICK_MINUTE
 from simulator import Human
+from base import Env
 import mobility_config as mcfg
 import mobility_utils as mutl
-
-
-class Env(simpy.Environment):
-    def __init__(self, initial_timestamp):
-        super().__init__()
-        self.initial_timestamp = initial_timestamp
-
-    def time(self):
-        return self.now
-
-    @property
-    def timestamp(self):
-        return self.initial_timestamp + datetime.timedelta(
-            minutes=self.now * TICK_MINUTE
-        )
-
-    def minutes(self):
-        return self.timestamp.minute
-
-    def hour_of_day(self):
-        return self.timestamp.hour
-
-    def day_of_week(self):
-        return self.timestamp.weekday()
-
-    def is_weekend(self):
-        return self.day_of_week() in [0, 6]
-
-    def time_of_day(self):
-        return self.timestamp.isoformat()
 
 
 class Location(simpy.Resource):
@@ -83,6 +54,8 @@ class Location(simpy.Resource):
             return 0
         return self.cont_prob
 
+    contamination_probability = contamination_proba
+
     def __hash__(self):
         return hash(self.name)
 
@@ -93,22 +66,23 @@ class Location(simpy.Resource):
     def random_location(
         cls,
         env: Env,
-        city_size: int = 1000,
+        city_limits: Dict = mcfg.DEFAULT_CITY,
         capacity: float = simpy.core.Infinity,
         cont_prob: float = None,
+        location_type: str = "misc",
     ):
         location = cls(
             env=env,
             capacity=capacity,
-            name=get_random_word(),
+            name=f"{location_type}_{get_random_word()}",
             lat=random.uniform(
-                mcfg.DEFAULT_CITY.COORD.SOUTH.LAT, mcfg.DEFAULT_CITY.COORD.NORTH.LAT
+                city_limits.COORD.SOUTH.LAT, mcfg.DEFAULT_CITY.COORD.NORTH.LAT
             ),
             lon=random.uniform(
-                mcfg.DEFAULT_CITY.COORD.WEST.LON, mcfg.DEFAULT_CITY.COORD.EAST.LON
+                city_limits.COORD.WEST.LON, mcfg.DEFAULT_CITY.COORD.EAST.LON
             ),
             cont_prob=(cont_prob or random.uniform(0, 1)),
-            location_type="misc",
+            location_type=location_type,
         )
         return location
 
@@ -166,7 +140,9 @@ class City(object):
             # No self edges
             if source == destination:
                 continue
-            # To the edges, we're gonna add:
+            # If the geo distance between two nodes can be supported by an
+            # available mobility mode, we add it as a labelled edge in the
+            # multi-graph. Moreover, we label the edges with the following:
             #   1. Raw distance,
             #   2. A transit object (which is a location)
             raw_distance = mutl.compute_geo_distance(source, destination)
@@ -250,6 +226,25 @@ class City(object):
 
         return transits
 
+    def get_location_type(self, location_type):
+        return [
+            location
+            for location in self.locations
+            if location.location_type == location_type
+        ]
+
+    @property
+    def stores(self):
+        return self.get_location_type("store")
+
+    @property
+    def parks(self):
+        return self.get_location_type("park")
+
+    @property
+    def miscs(self):
+        return self.get_location_type("misc")
+
     @classmethod
     def get_all_cities(cls):
         dead = set()
@@ -277,6 +272,12 @@ class City(object):
             if human in city:
                 return city
         return None
+
+    @classmethod
+    def make(cls, city_limits=mcfg.DEFAULT_CITY):
+        # TODO: Make a semirealistic city with stores, workplaces,
+        #  households, etc.
+        pass
 
 
 class Trip(object):
@@ -328,4 +329,3 @@ if __name__ == "__main__":
         destination=city.locations[1],
         mobility_mode_preference={mcfg.WALKING: 2.0, mcfg.BUS: 1.0},
     )
-
