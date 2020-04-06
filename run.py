@@ -54,7 +54,7 @@ def base(toy_human):
     cf.go_offline()
 
     monitors = run_simu(
-        n_stores=20, n_people=100, n_parks=10, n_misc=20,
+        n_stores=20, n_people=1000, n_parks=10, n_misc=20,
         init_percent_sick=0.01, store_capacity=30, misc_capacity=30,
         start_time=datetime.datetime(2020, 2, 28, 0, 0),
         simulation_days=60,
@@ -69,6 +69,21 @@ def base(toy_human):
     fig = x['R'].iplot(asFigure=True, title="R0")
     fig.show()
 
+@simu.command()
+def tune():
+    from simulator import Human
+    import pandas as pd
+    monitors = run_simu(
+        n_stores=20, n_people=100, n_parks=10, n_misc=20,
+        init_percent_sick=0.01, store_capacity=30, misc_capacity=30,
+        start_time=datetime.datetime(2020, 2, 28, 0, 0),
+        simulation_days=60,
+        outfile=None,
+        print_progress=True, seed=0, Human=Human,
+    )
+    stats = monitors[1].data
+    x = pd.DataFrame.from_dict(stats).set_index('time')
+
 
 @simu.command()
 def test():
@@ -79,8 +94,6 @@ def test():
 
     runner = unittest.TextTestRunner()
     runner.run(suite)
-
-
 
 def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
              init_percent_sick=0, store_capacity=30, misc_capacity=30,
@@ -164,7 +177,9 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
             age=_get_random_age(rng),
             infection_timestamp=start_time if i < n_people * init_percent_sick else None,
             household=rng.choice(households),
-            workplace=rng.choice(workplaces)
+            workplace=rng.choice(workplaces),
+            rho=0.6,
+            gamma=0.21
         )
         for i in range(n_people)]
 
@@ -173,7 +188,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
 
     # run the simulation
     if print_progress:
-        monitors.append(TimeMonitor(60))
+        monitors.append(TimeMonitor(1440)) # print every day
 
     for human in humans:
         env.process(human.run(city=city))
