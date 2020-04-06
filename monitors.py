@@ -86,6 +86,10 @@ class InfectionMonitor(BaseMonitor):
                 d1.update(d2)
                 self.data = dict(d1)
             yield env.timeout(self.f / TICK_MINUTE)
+    
+    def avg(self):
+        return({k: round(v / total_inf,4) for total_inf in 
+        (sum(self.data.values(), 0.0),) for k, v in self.data.items()})
 
 class PlotMonitor(BaseMonitor):
 
