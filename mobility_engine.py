@@ -292,8 +292,10 @@ class City(object):
         assert (
             destination in self.locations
         ), f"Trip destination {destination} is not in city {city}!"
+
         # Keep track of the transit mode with the best score
         favorite_modes = Dict()
+        total_distance = mutl.compute_geo_distance(source, destination)
 
         # The weight function provides a measure of "distance" for Djikstra
         def weight_fn(u, v, d):
@@ -314,7 +316,7 @@ class City(object):
             # travel time (i.e. mode speed and distance) and preference.
             def mode_weight_fn(mode: mcfg.MobilityMode):
                 weight = (
-                    (mode.favorability_given_distance(raw_distance) + 1)
+                    (mode.favorability_given_distance(total_distance) + 1)
                     * mode.travel_time(raw_distance).to("minute").magnitude
                     / mobility_mode_preference[mode]
                 )
