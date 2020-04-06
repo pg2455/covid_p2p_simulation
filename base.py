@@ -80,6 +80,9 @@ class Location(simpy.Resource):
 
     @property
     def contamination_probability(self):
+        for h in self.humans:
+            if h.is_infectious:
+                return 1
         weights = []
         values = []
         for elem in self.recent_humans:
