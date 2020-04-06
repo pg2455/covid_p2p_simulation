@@ -1,5 +1,6 @@
 from monitors import EventMonitor, TimeMonitor, SEIRMonitor
 from base import *
+from mobility_engine import Location, City
 from utils import _draw_random_discreet_gaussian, _get_random_age, _get_random_area
 import datetime
 import click
@@ -170,7 +171,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
         )
         for i in range(n_people)]
 
-    city = City(stores=stores, parks=parks, humans=humans, miscs=miscs)
+    city = City(env, stores + parks + humans + miscs)
     monitors = [EventMonitor(f=120), SEIRMonitor(f=1440)]
 
     # run the simulation

@@ -210,3 +210,13 @@ BIKE = MobilityMode(
     },
     transmission_proba=0.0001,
 )
+ANY = MobilityMode(
+    name="any",
+    min_distance=0 * KM,
+    max_distance=10e10 * KM,
+    capacity=Infinity,
+    speed=0 * KM / H,
+    fixed_route=False,
+    favorability_distance_profile={(0 * KM, 10e10 * KM): MobilityMode.IsFavorable.NO},
+    transmission_proba=0.0,
+)

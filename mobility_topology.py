@@ -100,7 +100,16 @@ class NaiveTopology(Topology):
 
 
 class ScaleFreeTopology(Topology):
-    def __init__(self, degree_weight=1.0, distance_weight=1.0, num_sampling_steps=10):
+    DEFAULT_DISTANCE_UNIT = mcfg.KM
+
+    def __init__(
+        self,
+        degree_weight=1.0,
+        distance_weight=1.0,
+        num_sampling_steps="auto",
+        mask_connected_edges=True,
+        num_samples_per_step=10,
+    ):
         self.precomputed_distances = None
         self.adjacency_matrix = None
         assert degree_weight >= 0, "Degree weight must be positive."
@@ -108,14 +117,25 @@ class ScaleFreeTopology(Topology):
         self.degree_weight = degree_weight
         self.distance_weight = distance_weight
         self.num_sampling_steps = num_sampling_steps
+        self.mask_connected_edges = mask_connected_edges
+        self.num_samples_per_step = num_samples_per_step
 
     def prepare(self, locations):
         distances = np.zeros(shape=(len(locations),) * 2)
         for (i, loc1), (j, loc2) in itertools.product(
             enumerate(locations), enumerate(locations)
         ):
+            if i == j:
+                # This is done to make sure that self-edges
+                # are avoided in the later sampling steps.
+                distances[i, j] = np.inf
+                continue
             # TODO Vectorize this!!
-            distances[i, j] = mutl.compute_geo_distance(loc1, loc2)
+            distances[i, j] = (
+                mutl.compute_geo_distance(loc1, loc2)
+                .to(self.DEFAULT_DISTANCE_UNIT)
+                .magnitude
+            )
         self.precomputed_distances = distances
         self.adjacency_matrix = np.zeros(shape=distances.shape)
         return distances
@@ -154,12 +174,18 @@ class ScaleFreeTopology(Topology):
         degree_energy = self.compute_degree_energies(degree_weight)
         distance_energies = self.compute_distance_energies(distance_weight)
         energy = degree_energy + distance_energies
+        # Mask out edges that are already connected
+        if self.mask_connected_edges:
+            energy[self.adjacency_matrix > 0] = np.inf
         # Compute a Boltzmann distry over all edges
         unnormalized = np.exp(-energy)
         normalized = unnormalized / unnormalized.sum()
         return normalized
 
-    def sampling_step(self, num_samples, degree_weight=None, distance_weight=None):
+    def sampling_step(self, num_samples=None, degree_weight=None, distance_weight=None):
+        num_samples = (
+            num_samples if num_samples is not None else self.num_samples_per_step
+        )
         edge_sampling_proba = self.compute_edge_sampling_probabilities(
             degree_weight=degree_weight, distance_weight=distance_weight
         )
@@ -172,10 +198,64 @@ class ScaleFreeTopology(Topology):
             replace=True,
         )
         # Add sampled edges to the adjacency matrix. Note that this
-        # operation is in-place.
+        # operation is in-place w.r.t. self.adjacency_matrix
         raveled_adjacency_matrix[list(sampled_indices)] = 1
+        # Now we make the new matrix symmetric (because the graph is undirected)
+        self.adjacency_matrix = np.clip(
+            self.adjacency_matrix + self.adjacency_matrix.T, a_max=1.0, a_min=0.0
+        )
+
+    def graph_from_adjacency_matrix(self, locations, adjacency_matrix=None):
+        adjacency_matrix = (
+            adjacency_matrix if adjacency_matrix is not None else self.adjacency_matrix
+        )
+        edges = [
+            (locations[i], locations[j], mcfg.ANY)
+            for i, j in zip(*adjacency_matrix.nonzero())
+        ]
+        graph = nx.MultiGraph()
+        graph.add_nodes_from(locations)
+        graph.add_edges_from(edges)
+        return graph
+
+    def all_nodes_connected(self):
+        return self.adjacency_matrix.sum(0).min() > 0
 
     def build_graph(self, env, locations):
         self.prepare(locations)
-        # TODO
+        # Connect the locations
+        step = 0
+        while True:
+            step += 1
+            if self.num_sampling_steps == "auto":
+                # Check if all nodes connected
+                if self.all_nodes_connected():
+                    break
+            else:
+                assert isinstance(self.num_sampling_steps, int)
+                # Break if number of allowed steps is exceeded
+                if step > self.num_sampling_steps:
+                    break
+            # ... or if all nodes are
+            self.sampling_step()
+        graph = self.graph_from_adjacency_matrix(locations)
+        return graph
+
+
+if __name__ == "__main__":
+    from base import Env
+    import datetime
+    import matplotlib.pyplot as plt
+
+    env = Env(datetime.datetime(2020, 2, 28, 0, 0))
+    locations = mutl.sample_in_city(mcfg.CITIES.REGION_MONTREAL, 100)
+    graph = ScaleFreeTopology(
+        distance_weight=1.1, degree_weight=0.3, num_sampling_steps="auto"
+    ).build_graph(env, locations)
+    pos = {loc: np.array([loc.lat, loc.lon]) for loc in locations}
+
+    plt.figure()
+    nx.draw(graph, pos=pos)
+    plt.savefig("/Users/nrahaman/Python/covid_p2p_simulation/scratch/graph.png")
+    plt.close()
 
