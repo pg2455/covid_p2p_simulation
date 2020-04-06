@@ -52,6 +52,7 @@ class SEIRMonitor(BaseMonitor):
                 R += h.is_removed
                 R0 += h.r0
 
+            print(env.timestamp, "Ro", np.mean(R0) if R0 else -1)
             self.data.append({
                     'time': env.timestamp,
                     'susceptible': S,
@@ -60,6 +61,7 @@ class SEIRMonitor(BaseMonitor):
                     'removed':R,
                     'R': np.mean(R0[-20:]) if R0 else -0.01
                     })
+
             yield env.timeout(self.f / TICK_MINUTE)
             # self.plot()
 

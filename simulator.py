@@ -388,13 +388,13 @@ class Human(object):
         location.add_human(self)
         self.leaving_time = duration + self.env.now
         self.start_time = self.env.now
-
+        area = self.location.area
         # Report all the encounters
         for h in location.humans:
             if h == self or self.location.location_type == 'household':
                 continue
 
-            distance = self.rng.randint(50, 1000)
+            distance =  np.sqrt(int(area/len(self.location.humans))) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
             t_near = min(self.leaving_time, h.leaving_time) - max(self.start_time, h.start_time)
             is_exposed = False
             p_infection = self.infectiousness * (h.is_asymptomatic  * self.asymptomatic_infection_ratio  + 1.0 * (not h.is_asymptomatic)) # &prob_infectious
