@@ -1,3 +1,4 @@
+import numpy as np
 import networkx as nx
 from addict import Dict
 import itertools
@@ -7,7 +8,7 @@ import mobility_utils as mutl
 
 
 class Topology(object):
-    def build_graph(self, env, location):
+    def build_graph(self, env, locations):
         raise NotImplementedError
 
 
@@ -99,10 +100,82 @@ class NaiveTopology(Topology):
 
 
 class ScaleFreeTopology(Topology):
-    def __init__(self, num_closest):
-        pass
+    def __init__(self, degree_weight=1.0, distance_weight=1.0, num_sampling_steps=10):
+        self.precomputed_distances = None
+        self.adjacency_matrix = None
+        assert degree_weight >= 0, "Degree weight must be positive."
+        assert distance_weight >= 0, "Distance weight must be positive."
+        self.degree_weight = degree_weight
+        self.distance_weight = distance_weight
+        self.num_sampling_steps = num_sampling_steps
 
-    def build_graph(self, env, location):
-        pass
+    def prepare(self, locations):
+        distances = np.zeros(shape=(len(locations),) * 2)
+        for (i, loc1), (j, loc2) in itertools.product(
+            enumerate(locations), enumerate(locations)
+        ):
+            # TODO Vectorize this!!
+            distances[i, j] = mutl.compute_geo_distance(loc1, loc2)
+        self.precomputed_distances = distances
+        self.adjacency_matrix = np.zeros(shape=distances.shape)
+        return distances
 
-    pass
+    def compute_degree_energies(self, weight=None):
+        assert (
+            self.adjacency_matrix is not None
+        ), "Prepare the class first by calling `self.prepare`."
+        # Get the total degree of u's and v's of all edges
+        edge_degrees = (
+            self.adjacency_matrix.sum(0, keepdims=True)
+            + self.adjacency_matrix.sum(1, keepdims=True)
+        ) / 2
+        # Edges between nodes of large degree gets lower energy.
+        degree_energy = (
+            -(weight if weight is not None else self.degree_weight) * edge_degrees
+        )
+        return degree_energy
+
+    def compute_distance_energies(self, weight=None):
+        assert (
+            self.precomputed_distances is not None
+        ), "Prepare the class first by calling `self.prepare.`"
+        # Large distances get lower energy
+        distance_energies = (
+            weight if weight is not None else self.distance_weight
+        ) * self.precomputed_distances
+        return distance_energies
+
+    def compute_edge_sampling_probabilities(
+        self, degree_weight=None, distance_weight=None
+    ):
+        assert (
+            self.precomputed_distances is not None
+        ), "Precompute distances first by calling self.prepare with locations."
+        degree_energy = self.compute_degree_energies(degree_weight)
+        distance_energies = self.compute_distance_energies(distance_weight)
+        energy = degree_energy + distance_energies
+        # Compute a Boltzmann distry over all edges
+        unnormalized = np.exp(-energy)
+        normalized = unnormalized / unnormalized.sum()
+        return normalized
+
+    def sampling_step(self, num_samples, degree_weight=None, distance_weight=None):
+        edge_sampling_proba = self.compute_edge_sampling_probabilities(
+            degree_weight=degree_weight, distance_weight=distance_weight
+        )
+        raveled_adjacency_matrix = self.adjacency_matrix.ravel()
+        # Sample a few indices to activate
+        sampled_indices = np.random.choice(
+            np.arange(edge_sampling_proba.size),
+            p=edge_sampling_proba.ravel(),
+            size=(num_samples,),
+            replace=True,
+        )
+        # Add sampled edges to the adjacency matrix. Note that this
+        # operation is in-place.
+        raveled_adjacency_matrix[list(sampled_indices)] = 1
+
+    def build_graph(self, env, locations):
+        self.prepare(locations)
+        # TODO
+
