@@ -62,6 +62,10 @@ def base(toy_human):
         print_progress=False, seed=0, Human=Human,
     )
     stats = monitors[1].data
+    
+    # divide infection for each location_type by total_infections
+    # print({k: round(v / total_inf,4) for total_inf in (sum(inf_per_loc.values(), 0.0),) for k, v in inf_per_loc.items()})
+    
     x = pd.DataFrame.from_dict(stats).set_index('time')
     fig = x[['susceptible', 'exposed', 'infectious', 'removed']].iplot(asFigure=True, title="SEIR")
     fig.show()

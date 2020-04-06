@@ -1,7 +1,8 @@
 from config import TICK_MINUTE
-from base import City
+from base import City, Location
 from simulator import Human
 from matplotlib import pyplot as plt
+from collections import Counter
 import json
 import pylab as pl
 import pickle
@@ -15,6 +16,7 @@ class BaseMonitor(object):
     def __init__(self, f=None):
         self.data = []
         self.f = f or 60
+        self.count=0
 
     def run(self, env, city: City):
         raise NotImplementedError
@@ -63,6 +65,28 @@ class SEIRMonitor(BaseMonitor):
             yield env.timeout(self.f / TICK_MINUTE)
             # self.plot()
 
+class InfectionMonitor(BaseMonitor):
+    def run(self, env, city:City):
+        while True:
+            d = {
+                'store':0,
+                'park':0,
+                'workplace':0,
+                'misc':0,
+                'household':0,
+            }
+            for l in d.keys():
+                d[l] = sum([h.is_infectious for h in city.humans if h.location.location_type==l])
+            # self.data = d if len(self.data)==0 else Counter(self.data).update(Counter(d)) 
+            if len(self.data)==0:
+                self.data=d
+            else:
+                d1 = Counter(self.data)
+                d2 = Counter(d)
+                d1.update(d2)
+                self.data = dict(d1)
+            yield env.timeout(self.f / TICK_MINUTE)
+
 class PlotMonitor(BaseMonitor):
 
     def run(self, env, city: City):
@@ -93,7 +117,6 @@ class PlotMonitor(BaseMonitor):
         pl.title(f"City at {self.data[-1]['htime']}")
         pl.legend()
         display.display(pl.gcf())
-
 
 class LatLonMonitor(BaseMonitor):
     def __init__(self, f=None):
