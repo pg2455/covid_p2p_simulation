@@ -3,6 +3,7 @@ import datetime
 import itertools
 from config import TICK_MINUTE
 from utils import compute_distance
+from orderedset import OrderedSet
 
 class Env(simpy.Environment):
 
@@ -59,7 +60,7 @@ class Location(simpy.Resource):
     def __init__(self, env, capacity=simpy.core.Infinity, name='Safeway', location_type='stores', lat=None, lon=None,
                  area=None, cont_prob=None):
         super().__init__(env, capacity)
-        self.humans = set()
+        self.humans = OrderedSet() #OrderedSet instead of set for determinism when iterating
         self.name = name
         self.lat = lat
         self.lon = lon

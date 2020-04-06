@@ -1,6 +1,9 @@
 import datetime
 import unittest
 from tempfile import NamedTemporaryFile
+from pprint import pprint
+import filecmp
+from deepdiff import DeepDiff
 
 from run import run_simu
 import pickle
@@ -39,3 +42,62 @@ class FullUnitTest(unittest.TestCase):
                 self.assertTrue(Event.test in {d['event_type'] for d in data})
 
                 self.assertTrue(len({d['human_id'] for d in data}) > n_people / 2)
+
+    @unittest.skip("Determinism not achieved yet")
+    def test_sim_same_seed(self):
+        """
+        Run two simulations with the same seed and ensure we get the same output
+        """
+        self.test_seed = 135
+        self.n_stores = 2
+        self.n_people = 2
+        self.n_parks = 1
+        self.n_misc = 2
+        self.init_percent_sick = 0.1
+        self.start_time=datetime.datetime(2020, 2, 28, 0, 0)
+        self.simulation_days = 4
+
+        with NamedTemporaryFile() as f1, NamedTemporaryFile() as f2:
+            monitors1 = run_simu(
+                n_stores = self.n_stores,
+                n_people=self.n_people,
+                n_parks=self.n_parks,
+                n_misc=self.n_misc,
+                init_percent_sick=self.init_percent_sick,
+                start_time=self.start_time,
+                simulation_days=self.simulation_days,
+                outfile=f1.name,
+                seed=self.test_seed
+            )
+            monitors1[0].dump(f1.name)
+            f1.seek(0)
+
+            monitors2 = run_simu(
+                n_stores = self.n_stores,
+                n_people=self.n_people,
+                n_parks=self.n_parks,
+                n_misc=self.n_misc,
+                init_percent_sick=self.init_percent_sick,
+                start_time=self.start_time,
+                simulation_days=self.simulation_days,
+                outfile=f2.name,
+                seed=self.test_seed
+            )
+            monitors2[0].dump(f2.name)
+            f2.seek(0)
+
+            with open(f"{f1.name}.pkl", 'rb') as f1_output, open(f"{f2.name}.pkl", 'rb') as f2_output:
+                data1 = pickle.load(f1_output)
+                data2 = pickle.load(f2_output)
+                print("Data1: ")
+                print(data1)
+
+                print("\n\nData2: ")
+                print(data2)
+
+                print("Diff:")
+                pprint(DeepDiff(data1,data2,ignore_order=True))
+                    
+
+
+            self.assertTrue(filecmp.cmp(f"{f1.name}.pkl",f"{f2.name}.pkl"), msg=f"Two simulations run with the same seed ({self.test_seed}) yielded different results")

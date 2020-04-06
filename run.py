@@ -5,7 +5,7 @@ import datetime
 import click
 from config import TICK_MINUTE
 import numpy as np
-
+import math
 
 @click.group()
 def simu():
@@ -91,6 +91,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
 
     if Human is None:
         from simulator import Human
+
     rng = np.random.RandomState(seed)
     env = Env(start_time)
     city_limit = ((0, 1000), (0, 1000))
@@ -98,8 +99,8 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
     area_dict = {'store':_get_random_area('store', n_stores, total_area, rng), 
                  'park':_get_random_area('park',n_parks, total_area, rng),
                  'misc':_get_random_area('misc',n_misc, total_area, rng),
-                 'household':_get_random_area('household', int(n_people/2), total_area, rng),
-                 'workplace':_get_random_area('workplace', int(n_people/30), total_area, rng)}
+                 'household':_get_random_area('household', math.ceil(n_people/2), total_area, rng),
+                 'workplace':_get_random_area('workplace', math.ceil(n_people/30), total_area, rng)}
     
     stores = [
         Location(
@@ -133,7 +134,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
             lat=rng.randint(*city_limit[0]),
             lon=rng.randint(*city_limit[1]),
         )
-        for i in range(int(n_people / 2))
+        for i in range(math.ceil(n_people / 2))
     ]
     workplaces = [
         Location(
@@ -144,7 +145,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
             lat=rng.randint(*city_limit[0]),
             lon=rng.randint(*city_limit[1]),
         )
-        for i in range(int(n_people / 30))
+        for i in range(math.ceil(n_people / 30))
     ]
     miscs = [
         Location(
