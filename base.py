@@ -95,6 +95,9 @@ class Location(simpy.Resource):
 
     @property
     def contamination_probability(self):
+        for h in self.humans:
+            if h.is_infectious:
+                return 1
         if self.is_contaminated:
             lag = (self.env.timestamp - self.contamination_timestamp)
             lag /= datetime.timedelta(days=1)
