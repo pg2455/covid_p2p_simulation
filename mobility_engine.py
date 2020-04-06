@@ -1,4 +1,5 @@
 from typing import List, Mapping
+from collections import namedtuple
 
 import random
 import datetime
@@ -19,7 +20,7 @@ import mobility_utils as mutl
 # This is to prevent circular imports
 # noinspection PyUnreachableCode
 if False:
-    from human import Human
+    from simulator import Human
 else:
     Human = type
 
@@ -384,7 +385,7 @@ class City(object):
             human._compute_preferences(self)
 
     def __contains__(self, item):
-        from human import Human
+        from simulator import Human
 
         if isinstance(item, Human):
             return item.location in self.locations
@@ -460,6 +461,9 @@ class Trip(object):
                 yield request
                 yield self.env.process(self.human.at(transit, transit.travel_time))
         return self
+
+
+ExcursionType = namedtuple("ExcursionType", ["location", "duration", "request"])
 
 
 if __name__ == "__main__":

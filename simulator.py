@@ -5,10 +5,17 @@ import itertools
 import numpy as np
 from collections import defaultdict
 import datetime
+from typing import List
+from contextlib import suppress
 
 from utils import _normalize_scores, _get_random_age, _draw_random_discreet_gaussian, _json_serialize
 from config import *  # PARAMETERS
 from base import *
+
+import mobility_config as mcfg
+from mobility_engine import City, Trip, ExcursionType
+import mobility_utils as mutls
+
 
 class Visits:
     parks = defaultdict(int)
@@ -97,10 +104,12 @@ class Human(object):
         #getting the number of shopping days and hours from a distribution
         self.number_of_shopping_days = _draw_random_discreet_gaussian(AVG_NUM_SHOPPING_DAYS, SCALE_NUM_SHOPPING_DAYS, self.rng)
         self.number_of_shopping_hours = _draw_random_discreet_gaussian(AVG_NUM_SHOPPING_HOURS, SCALE_NUM_SHOPPING_HOURS, self.rng)
+        self.stores_preferences = None
 
         #getting the number of exercise days and hours from a distribution
         self.number_of_exercise_days = _draw_random_discreet_gaussian(AVG_NUM_EXERCISE_DAYS, SCALE_NUM_EXERCISE_DAYS, self.rng)
         self.number_of_exercise_hours = _draw_random_discreet_gaussian(AVG_NUM_EXERCISE_HOURS, SCALE_NUM_EXERCISE_HOURS, self.rng)
+        self.parks_preferences = None
 
         #Multiple shopping days and hours
         self.shopping_days = self.rng.choice(range(7), self.number_of_shopping_days)
@@ -119,6 +128,17 @@ class Human(object):
         self.count_exercise=0
         
         self.work_start_hour = self.rng.choice(range(7, 12))
+
+        # Preference of one mobility modes
+        # First we get a random "baseline", which we update based on parameters
+        # from config file.
+        self.mobility_mode_preference = {
+            mode: self.rng.random()
+            for mode in mcfg.MobilityMode.get_all_mobility_modes()
+        }
+        if self.rng.random() > P_HAS_CAR:
+            # Account for people who don't own cars
+            self.mobility_mode_preference.pop(mcfg.CAR)
 
     def __repr__(self):
         return f"H:{self.name}, SEIR:{int(self.is_susceptible)}{int(self.is_exposed)}{int(self.is_infectious)}{int(self.is_removed)}"
@@ -363,41 +383,61 @@ class Human(object):
         else:
             return round(self.lon + self.rng.normal(0, 10))
 
-    def excursion(self, city, type):
+    def excursion(self, city: "City", type: str):
+        sub_excursions = []
 
         if type == "shopping":
-            grocery_store = self._select_location(location_type="stores", city=city)
-            t = _draw_random_discreet_gaussian(self.avg_shopping_time, self.scale_shopping_time, self.rng)
-            with grocery_store.request() as request:
-                yield request
-                yield self.env.process(self.at(grocery_store, t))
+            location = self._select_location(location_type="stores", city=city)
+            duration = _draw_random_discreet_gaussian(self.avg_shopping_time, self.scale_shopping_time, self.rng)
+            sub_excursions.append(ExcursionType(location=location, duration=duration, request=True))
 
         elif type == "exercise":
-            park = self._select_location(location_type="park", city=city)
-            t = _draw_random_discreet_gaussian(self.avg_exercise_time, self.scale_exercise_time, self.rng)
-            yield self.env.process(self.at(park, t))
+            location = self._select_location(location_type="park", city=city)
+            duration = _draw_random_discreet_gaussian(self.avg_exercise_time, self.scale_exercise_time, self.rng)
+            sub_excursions.append(ExcursionType(location=location, duration=duration, request=False))
 
         elif type == "work":
-            t = _draw_random_discreet_gaussian(self.avg_working_hours, self.scale_working_hours, self.rng)
-            yield self.env.process(self.at(self.workplace, t))
+            location = self.workplace
+            duration = _draw_random_discreet_gaussian(self.avg_working_hours, self.scale_working_hours, self.rng)
+            sub_excursions.append(ExcursionType(location=location, duration=duration, request=False))
 
         elif type == "leisure":
             S = 0
             p_exp = 1.0
             while True:
                 if self.rng.random() > p_exp:  # return home
-                    yield self.env.process(self.at(self.household, 60))
+                    sub_excursions.append(ExcursionType(location=self.household, duration=60, request=False))
                     break
 
-                loc = self._select_location(location_type='miscs', city=city)
+                location = self._select_location(location_type="miscs", city=city)
                 S += 1
                 p_exp = self.rho * S ** (-self.gamma * self.adjust_gamma)
-                with loc.request() as request:
-                    yield request
-                    t = _draw_random_discreet_gaussian(self.avg_misc_time, self.scale_misc_time, self.rng)
-                    yield self.env.process(self.at(loc, t))
+                duration = _draw_random_discreet_gaussian(self.avg_misc_time, self.scale_misc_time, self.rng)
+                sub_excursions.append(ExcursionType(location=location, duration=duration, request=True))
         else:
-            raise ValueError(f'Unknown excursion type:{type}')
+            raise ValueError(f"Unknown excursion type:{type}")
+        return self._execute_excursions(city, sub_excursions)
+
+    def _execute_excursions(self, city: "City", excursions: List[ExcursionType]):
+        for excursion in excursions:
+            # Plan a trip from current location to the excursion location
+            # noinspection PyTypeChecker
+            trip = Trip(
+                env=self.env,
+                human=self,
+                source=self.location,
+                destination=excursion.location,
+                city=city,
+            )
+            # Take the trip
+            trip.take()
+            # Now the excursion location may or may not require a request, so...
+            requester = excursion.location.request if excursion.request else suppress
+            # Stay at the excursion location for however long requested
+            with requester() as request:
+                if request is not None:
+                    yield request
+                yield self.env.process(self.at(location=excursion.location, duration=excursion.duration))
 
     def at(self, location, duration):
         if self.name == 1:
@@ -414,8 +454,10 @@ class Human(object):
         for h in location.humans:
             if h == self or self.location.location_type == 'household':
                 continue
-
-            distance =  np.sqrt(int(area/len(self.location.humans))) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
+            if area is not None:
+                distance = np.sqrt(int(area/len(self.location.humans))) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
+            else:
+                distance = self.rng.randint(50, 1000)
             t_near = min(self.leaving_time, h.leaving_time) - max(self.start_time, h.start_time)
             is_exposed = False
             if h.is_infectious and distance <= 200 and t_near * TICK_MINUTE > 2 and self.rng.random() < location.contamination_probability:
@@ -439,12 +481,28 @@ class Human(object):
         yield self.env.timeout(duration / TICK_MINUTE)
         location.humans.remove(self)
 
-    def _select_location(self, location_type, city):
+    def _compute_preferences(self, city: "City"):
+        # This was previously in `City`, but this seems like a better place
+        self.stores_preferences = [
+            (mutls.compute_geo_distance(self.household, s).to("km").magnitude + 1e-1)
+            ** -1
+            for s in city.stores
+        ]
+        self.parks_preferences = [
+            (mutls.compute_geo_distance(self.household, s).to("km").magnitude + 1e-1)
+            ** -1
+            for s in city.parks
+        ]
+
+    def _select_location(self, location_type: str, city: "City"):
         """
         Preferential exploration treatment to visit places
         rho, gamma are treated in the paper for normal trips
         Here gamma is multiplied by a factor to supress exploration for parks, stores.
         """
+        if None in [self.stores_preferences, self.parks_preferences]:
+            self._compute_preferences(city)
+
         if location_type == "park":
             S = self.visits.n_parks
             self.adjust_gamma = 1.0

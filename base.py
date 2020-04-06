@@ -34,55 +34,6 @@ class Env(simpy.Environment):
         return self.timestamp.isoformat()
 
 
-class City(object):
-
-    def __init__(self, stores, parks, humans, miscs):
-        self.stores = stores
-        self.parks = parks
-        self.humans = humans
-        self.miscs = miscs
-        self._compute_preferences()
-
-    @property
-    def events(self):
-        return list(itertools.chain(*[h.events for h in self.humans]))
-
-    def _compute_preferences(self):
-        """ compute preferred distribution of each human for park, stores, etc."""
-        for h in self.humans:
-            h.stores_preferences = [(compute_distance(h.household, s) + 1e-1) ** -1 for s in self.stores]
-            h.parks_preferences = [(compute_distance(h.household, s) + 1e-1) ** -1 for s in self.parks]
-
-
-class Location(simpy.Resource):
-
-    def __init__(self, env, capacity=simpy.core.Infinity, name='Safeway', location_type='stores', lat=None, lon=None,
-                 area=None, cont_prob=None):
-        super().__init__(env, capacity)
-        self.humans = set()
-        self.name = name
-        self.lat = lat
-        self.lon = lon
-        self.area = area
-        self.location_type = location_type
-        self.cont_prob = cont_prob
-
-    def infectious_human(self):
-        return any([h.is_infectious for h in self.humans])
-
-    def __repr__(self):
-        return f"{self.name} - occ:{len(self.humans)}/{self.capacity} - I:{self.infectious_human()}"
-
-    @property
-    def contamination_probability(self):
-        if not self.infectious_human():
-            return 0
-        return self.cont_prob
-
-    def __hash__(self):
-        return hash(self.name)
-
-
 class Event:
     test = 'test'
     encounter = 'encounter'

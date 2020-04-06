@@ -4,7 +4,7 @@ import numpy as np
 from base import Env
 from mobility_engine import City, Location, PublicTransitStation
 import mobility_config as mcfg
-from human import Human
+from simulator import Human
 from monitors import EventMonitor, TimeMonitor, SEIRMonitor
 from utils import _get_random_age
 from config import TICK_MINUTE

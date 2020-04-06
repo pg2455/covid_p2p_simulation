@@ -1,5 +1,5 @@
 from config import TICK_MINUTE
-from base import City
+from mobility_engine import City
 from simulator import Human
 from matplotlib import pyplot as plt
 import json
