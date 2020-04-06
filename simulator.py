@@ -273,7 +273,6 @@ class Human(object):
         self.household.humans.add(self)
         while True:
 
-
             if self.is_infectious and self.has_logged_symptoms is False:
                 Event.log_symptom_start(self, self.env.timestamp, True)
                 self.has_logged_symptoms = True
@@ -382,7 +381,7 @@ class Human(object):
     def at(self, location, duration):
         if self.name == 1:
             # print(self, self.env.timestamp.strftime("%b %d, %H %M"), self.location)
-            # print(self.env.timestamp.strftime("%b %d, %H %M"), self.location._name, "-->", location._name, duration)
+            print(self.env.timestamp.strftime("%b %d, %H %M"), self.location.name, "-->", location.name, duration)
             pass
 
         self.location = location
