@@ -1,5 +1,5 @@
 from config import TICK_MINUTE
-from base import City, Location
+from base import City
 from simulator import Human
 from matplotlib import pyplot as plt
 from collections import Counter
@@ -73,7 +73,7 @@ class InfectionMonitor(BaseMonitor):
                 'park':0,
                 'workplace':0,
                 'misc':0,
-                'household':0,
+                'household':0
             }
             for l in d.keys():
                 d[l] = sum([h.is_infectious for h in city.humans if h.location.location_type==l])
