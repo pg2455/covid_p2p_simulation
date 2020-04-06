@@ -80,10 +80,10 @@ class Location(simpy.Resource):
             capacity=capacity,
             name=f"{location_type}_{get_random_word()}",
             lat=random.uniform(
-                city_limits.COORD.SOUTH.LAT, mcfg.DEFAULT_CITY.COORD.NORTH.LAT
+                city_limits.COORD.SOUTH.LAT, city_limits.COORD.NORTH.LAT
             ),
             lon=random.uniform(
-                city_limits.COORD.WEST.LON, mcfg.DEFAULT_CITY.COORD.EAST.LON
+                city_limits.COORD.WEST.LON, city_limits.COORD.EAST.LON
             ),
             cont_prob=(cont_prob or random.uniform(0, 1)),
             location_type=location_type,
@@ -132,10 +132,10 @@ class PublicTransitStation(Location):
             capacity=capacity,
             name=get_random_word(),
             lat=random.uniform(
-                city_limits.COORD.SOUTH.LAT, mcfg.DEFAULT_CITY.COORD.NORTH.LAT
+                city_limits.COORD.SOUTH.LAT, city_limits.COORD.NORTH.LAT
             ),
             lon=random.uniform(
-                city_limits.COORD.WEST.LON, mcfg.DEFAULT_CITY.COORD.EAST.LON
+                city_limits.COORD.WEST.LON, city_limits.COORD.EAST.LON
             ),
             cont_prob=(cont_prob or random.uniform(0, 1)),
         )
