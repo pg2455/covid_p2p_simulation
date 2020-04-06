@@ -51,8 +51,10 @@ class Location(simpy.Resource):
         return any([h.is_infectious for h in self.humans])
 
     def __repr__(self):
-        return f"{self.name} - occ:{len(self.humans)}/{self.capacity}" \
-               f" - I:{self.infectious_human()}"
+        return (
+            f"{self.name} - occ:{len(self.humans)}/{self.capacity}"
+            f" - I:{self.infectious_human()}"
+        )
 
     @property
     def contamination_probability(self):
@@ -75,16 +77,13 @@ class Location(simpy.Resource):
         cont_prob: float = None,
         location_type: str = "misc",
     ):
+        random_geolocation = mutl.sample_in_city(city_spec=city_limits)
         location = cls(
             env=env,
             capacity=capacity,
             name=f"{location_type}_{get_random_word()}",
-            lat=random.uniform(
-                city_limits.COORD.SOUTH.LAT, city_limits.COORD.NORTH.LAT
-            ),
-            lon=random.uniform(
-                city_limits.COORD.WEST.LON, city_limits.COORD.EAST.LON
-            ),
+            lat=random_geolocation.lat,
+            lon=random_geolocation.lon,
             cont_prob=(cont_prob or random.uniform(0, 1)),
             location_type=location_type,
         )
@@ -126,17 +125,14 @@ class PublicTransitStation(Location):
         capacity: float = simpy.core.Infinity,
         cont_prob: float = None,
     ):
+        random_geolocation = mutl.sample_in_city(city_spec=city_limits)
         transit_station = cls(
             env=env,
             mobility_mode=mobility_mode,
             capacity=capacity,
             name=get_random_word(),
-            lat=random.uniform(
-                city_limits.COORD.SOUTH.LAT, city_limits.COORD.NORTH.LAT
-            ),
-            lon=random.uniform(
-                city_limits.COORD.WEST.LON, city_limits.COORD.EAST.LON
-            ),
+            lat=random_geolocation.lat,
+            lon=random_geolocation.lon,
             cont_prob=(cont_prob or random.uniform(0, 1)),
         )
         return transit_station
