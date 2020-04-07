@@ -77,7 +77,7 @@ class Location(simpy.Resource):
         cont_prob: float = None,
         location_type: str = "misc",
     ):
-        random_geolocation = mutl.sample_in_city(city_spec=city_limits)
+        random_geolocation = mutl.sample_in_city(city_spec=city_limits)[0]
         location = cls(
             env=env,
             capacity=capacity,
@@ -125,7 +125,7 @@ class PublicTransitStation(Location):
         capacity: float = simpy.core.Infinity,
         cont_prob: float = None,
     ):
-        random_geolocation = mutl.sample_in_city(city_spec=city_limits)
+        random_geolocation = mutl.sample_in_city(city_spec=city_limits)[0]
         transit_station = cls(
             env=env,
             mobility_mode=mobility_mode,

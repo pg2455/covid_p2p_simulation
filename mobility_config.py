@@ -111,6 +111,9 @@ class MobilityMode(object):
         )
 
     def travel_time(self, distance):
+        if self.speed == 0:
+            # Special case for `Any`
+            return 10e10 * H
         return distance / self.speed
 
     @classmethod
