@@ -9,7 +9,7 @@ def _normalize_scores(scores):
 # &canadian-demgraphics
 def _get_random_age(rng):
 	# random normal centered on 50 with stdev 25
-	draw = rng.normal(50, 25, 1)
+	draw = rng.normal(50, 10, 1)
 	if draw < 0:
 		# if below 0, shift to a bump centred around 30
 		age = round(30 + rng.normal(0, 4))
@@ -18,15 +18,15 @@ def _get_random_age(rng):
 	return age
 
 def _get_random_area(location_type, num, total_area, rng):
-	''' Using Dirichlet distribution since it generates a "distribution of probabilities" 
-	which will ensure that the total area allotted to a location type remains conserved 
+	''' Using Dirichlet distribution since it generates a "distribution of probabilities"
+	which will ensure that the total area allotted to a location type remains conserved
 	while also maintaining a uniform distribution'''
 	perc_dist = {"store":0.15, "misc":0.15, "workplace":0.2, "household":0.3, "park":0.5}
-	
-	# Keeping max at area/2 to ensure no location is allocated more than half of the total area allocated to its location type 
+
+	# Keeping max at area/2 to ensure no location is allocated more than half of the total area allocated to its location type
 	area = rng.dirichlet(np.ones(math.ceil(num/2)))*(perc_dist[location_type]*total_area/2)
 	area = np.append(area,rng.dirichlet(np.ones(math.floor(num/2)))*(perc_dist[location_type]*total_area/2))
-	
+
 	return area
 
 def _draw_random_discreet_gaussian(avg, scale, rng):

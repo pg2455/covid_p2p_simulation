@@ -3,6 +3,7 @@ import datetime
 import itertools
 from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION
 from utils import compute_distance
+from collections import defaultdict
 
 class Env(simpy.Environment):
 
@@ -42,6 +43,14 @@ class City(object):
         self.humans = humans
         self.miscs = miscs
         self._compute_preferences()
+        self.contacts = {
+                'all':defaultdict(lambda : {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}),
+                'infectious': {
+                    'human': defaultdict(lambda : {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}),
+                    'environment': {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}
+                }
+            }
+
 
     @property
     def events(self):

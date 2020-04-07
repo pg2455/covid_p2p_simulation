@@ -81,6 +81,7 @@ class Human(object):
         self.has_logged_test = False
         self.n_infectious_contacts = 0
         self.last_state = self.state
+        self.contacts_made = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0} # 0:0-20, 1:20-40 2:40-60 3:60-80
 
         # habits
         self.avg_shopping_time = _draw_random_discreet_gaussian(AVG_SHOP_TIME_MINUTES, SCALE_SHOP_TIME_MINUTES, self.rng)
@@ -120,8 +121,8 @@ class Human(object):
         #Limiting the number of hours spent exercising per week
         self.max_exercise_per_week = _draw_random_discreet_gaussian(AVG_MAX_NUM_EXERCISE_PER_WEEK, SCALE_MAX_NUM_EXERCISE_PER_WEEK, self.rng)
         self.count_exercise=0
-        
-        self.work_start_hour = self.rng.choice(range(7, 12))
+
+        self.work_start_hour = self.rng.choice(range(7, 12), 3)
 
     def __repr__(self):
         return f"H:{self.name}, SEIR:{int(self.is_susceptible)}{int(self.is_exposed)}{int(self.is_infectious)}{int(self.is_removed)}"
@@ -320,13 +321,13 @@ class Human(object):
             # Mobility
 
             hour, day = self.env.hour_of_day(), self.env.day_of_week()
-            
+
             if day==0:
                 self.count_exercise=0
                 self.count_shop=0
 
 
-            if not WORK_FROM_HOME and not self.env.is_weekend() and hour == self.work_start_hour:
+            if not WORK_FROM_HOME and not self.env.is_weekend() and hour in self.work_start_hour:
                 yield self.env.process(self.excursion(city, "work"))
 
             elif hour in self.shopping_hours and day in self.shopping_days and self.count_shop<=self.max_shop_per_week:
@@ -341,7 +342,7 @@ class Human(object):
                 yield  self.env.process(self.excursion(city, "leisure"))
 
             # start from house all the time
-            yield self.env.process(self.at(self.household, 60))
+            yield self.env.process(self.at(self.household, city, 60))
 
     ############################## MOBILITY ##################################
     @property
@@ -374,23 +375,23 @@ class Human(object):
             t = _draw_random_discreet_gaussian(self.avg_shopping_time, self.scale_shopping_time, self.rng)
             with grocery_store.request() as request:
                 yield request
-                yield self.env.process(self.at(grocery_store, t))
+                yield self.env.process(self.at(grocery_store, city, t))
 
         elif type == "exercise":
             park = self._select_location(location_type="park", city=city)
             t = _draw_random_discreet_gaussian(self.avg_exercise_time, self.scale_exercise_time, self.rng)
-            yield self.env.process(self.at(park, t))
+            yield self.env.process(self.at(park, city, t))
 
         elif type == "work":
             t = _draw_random_discreet_gaussian(self.avg_working_hours, self.scale_working_hours, self.rng)
-            yield self.env.process(self.at(self.workplace, t))
+            yield self.env.process(self.at(self.workplace, city, t))
 
         elif type == "leisure":
             S = 0
             p_exp = 1.0
             while True:
                 if self.rng.random() > p_exp:  # return home
-                    yield self.env.process(self.at(self.household, 60))
+                    yield self.env.process(self.at(self.household, city, 60))
                     break
 
                 loc = self._select_location(location_type='miscs', city=city)
@@ -399,15 +400,15 @@ class Human(object):
                 with loc.request() as request:
                     yield request
                     t = _draw_random_discreet_gaussian(self.avg_misc_time, self.scale_misc_time, self.rng)
-                    yield self.env.process(self.at(loc, t))
+                    yield self.env.process(self.at(loc, city, t))
         else:
             raise ValueError(f'Unknown excursion type:{type}')
 
 
-    def at(self, location, duration):
+    def at(self, location, city, duration):
         if self.name == 1:
             # print(self, self.env.timestamp.strftime("%b %d, %H %M"), self.location)
-            print(self.env.timestamp.strftime("%b %d, %H %M"), self.location.name, "-->", location.name, duration)
+            # print(self.env.timestamp.strftime("%a, %b %d, %H %M"), self.location.name, "-->", location.name, duration)
             pass
 
         self.location = location
@@ -420,17 +421,24 @@ class Human(object):
             if h == self or self.location.location_type == 'household':
                 continue
 
+            city.contacts['all'][int(self.age / 20)][int(h.age / 20)] += 1
             distance =  np.sqrt(int(area/len(self.location.humans))) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
-            t_near = min(self.leaving_time, h.leaving_time) - max(self.start_time, h.start_time)
+            t_near = min(self.leaving_time, getattr(h, "leaving_time", 60)) - max(self.start_time, getattr(h, "start_time", 60))
             is_exposed = False
-            p_infection = self.infectiousness * (h.is_asymptomatic  * self.asymptomatic_infection_ratio  + 1.0 * (not h.is_asymptomatic)) # &prob_infectious
+            p_infection = 3 * h.infectiousness * (h.is_asymptomatic  * h.asymptomatic_infection_ratio  + 1.0 * (not h.is_asymptomatic)) # &prob_infectious
             x_human = distance <= INFECTION_RADIUS and t_near * TICK_MINUTE > INFECTION_DURATION and self.rng.random() < p_infection
-            x_environment = self.rng.random() < location.contamination_probability # &prob_infection
+            x_environment = self.rng.random() < 0.01 * location.contamination_probability # &prob_infection
             if x_human or x_environment:
                 if self.is_susceptible:
                     is_exposed = True
                     h.n_infectious_contacts+=1
                     Event.log_exposed(self, self.env.timestamp)
+
+                    if x_human:
+                        city.contacts['infectious']['human'][int(h.age / 20)][int(self.age / 20)] += 1
+
+                    if x_environment:
+                        city.contacts['infectious']['environment'][int(self.age / 20)] += 1
 
             if self.is_susceptible and is_exposed:
                 self.infection_timestamp = self.env.timestamp

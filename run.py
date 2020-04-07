@@ -57,7 +57,7 @@ def base(toy_human):
         n_stores=20, n_people=1000, n_parks=10, n_misc=20,
         init_percent_sick=0.01, store_capacity=30, misc_capacity=30,
         start_time=datetime.datetime(2020, 2, 28, 0, 0),
-        simulation_days=60,
+        simulation_days=30,
         outfile=None,
         print_progress=False, seed=0, Human=Human,
     )
@@ -73,16 +73,26 @@ def base(toy_human):
 def tune():
     from simulator import Human
     import pandas as pd
+    from monitors import ContactMonitor
+    import cufflinks as cf
+    cf.go_offline()
     monitors = run_simu(
         n_stores=20, n_people=100, n_parks=10, n_misc=20,
         init_percent_sick=0.01, store_capacity=30, misc_capacity=30,
         start_time=datetime.datetime(2020, 2, 28, 0, 0),
         simulation_days=60,
         outfile=None,
-        print_progress=True, seed=0, Human=Human,
+        print_progress=True, seed=0, Human=Human, other_monitors=[ContactMonitor(1440)]
     )
     stats = monitors[1].data
     x = pd.DataFrame.from_dict(stats).set_index('time')
+
+    contacts = monitors[-1].data
+    x = pd.DataFrame.from_dict(contacts)
+    import pdb; pdb.set_trace()
+    fig = x.iplot(kind='heatmap')
+    fig.show()
+    import pdb; pdb.set_trace()
 
 
 @simu.command()
@@ -100,7 +110,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
              start_time=datetime.datetime(2020, 2, 28, 0, 0),
              simulation_days=10,
              outfile=None,
-             print_progress=False, seed=0, Human=None):
+             print_progress=False, seed=0, Human=None, other_monitors=[]):
 
     if Human is None:
         from simulator import Human
@@ -109,12 +119,12 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
     env = Env(start_time)
     city_limit = ((0, 1000), (0, 1000))
     total_area = (city_limit[0][1]-city_limit[0][0])*(city_limit[1][1]-city_limit[1][0])
-    area_dict = {'store':_get_random_area('store', n_stores, total_area, rng), 
+    area_dict = {'store':_get_random_area('store', n_stores, total_area, rng),
                  'park':_get_random_area('park',n_parks, total_area, rng),
                  'misc':_get_random_area('misc',n_misc, total_area, rng),
                  'household':_get_random_area('household', int(n_people/2), total_area, rng),
                  'workplace':_get_random_area('workplace', int(n_people/30), total_area, rng)}
-    
+
     stores = [
         Location(
             env, rng,
@@ -202,6 +212,9 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
     # run the simulation
     if print_progress:
         monitors.append(TimeMonitor(1440)) # print every day
+
+    if other_monitors:
+        monitors += other_monitors
 
     for human in humans:
         env.process(human.run(city=city))
