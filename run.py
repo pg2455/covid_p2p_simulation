@@ -7,6 +7,14 @@ from config import TICK_MINUTE
 import numpy as np
 
 
+class PatchRNG(np.random.RandomState):
+    def random(self):
+        return self.uniform(0, 1)
+
+
+np.random.RandomState = PatchRNG
+
+
 @click.group()
 def simu():
     pass
