@@ -5,6 +5,7 @@ import itertools
 import numpy as np
 from collections import defaultdict
 import datetime
+from addict import Dict
 
 from utils import _normalize_scores, _get_random_age, _draw_random_discreet_gaussian, _json_serialize
 from config import *  # PARAMETERS
@@ -78,6 +79,7 @@ class Human(object):
         # Risk tracking
         self.risk = 0
         self.update_initial_risk()
+        self.contact_history = Dict()
 
         # counters and memory
         self.r0 = []
@@ -272,7 +274,8 @@ class Human(object):
             self.risk += 0.25
         else:
             raise ValueError(f"Invalid symptom: {symptoms}")
-        self.risk = min(self.risk, 1.)
+        if CLIP_RISK:
+            self.risk = min(self.risk, 1.)
 
     def update_risk(self, other: "Human"):
         if RISK_MODEL == 'yoshua':
@@ -282,10 +285,24 @@ class Human(object):
                 update = 0
         elif RISK_MODEL == 'lenka':
             update = other.risk * RISK_TRANSMISSION_PROBA
+        elif RISK_MODEL == 'eilif':
+            if other.name not in self.contact_history:
+                # update is delta_risk
+                update = other.risk * RISK_TRANSMISSION_PROBA
+            else:
+                previous_risk = self.contact_history[other.name].previous_risk
+                carry_over_transmission_proba = self.contact_history[other.name].carry_over_transmission_proba
+                update = ((other.risk - previous_risk) * RISK_TRANSMISSION_PROBA +
+                          previous_risk * carry_over_transmission_proba)
+            # Update contact history
+            self.contact_history[other.name].previous_risk = other.risk
+            self.contact_history[other.name].carry_over_transmission_proba = \
+                RISK_TRANSMISSION_PROBA * (1 - update)
         else:
             update = 0
         self.risk += update
-        self.risk = min(self.risk, 1.)
+        if CLIP_RISK:
+            self.risk = min(self.risk, 1.)
 
     def update_r(self, timedelta):
         timedelta /= datetime.timedelta(days=1) # convert to float days
@@ -310,8 +327,8 @@ class Human(object):
         """
         self.household.humans.add(self)
         while True:
-
-            self.update_initial_risk()
+            if UPDATE_RISK_EVERY_DAY:
+                self.update_initial_risk()
 
             if self.is_infectious and self.has_logged_symptoms is False:
                 Event.log_symptom_start(self, self.env.timestamp, True)
