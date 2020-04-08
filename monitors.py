@@ -74,7 +74,7 @@ class InfectionMonitor(BaseMonitor):
                 'park':0,
                 'workplace':0,
                 'misc':0,
-                'household':0,
+                'household':0
             }
             for h in city.humans:
                 if len(self.s[h.name])!=0:
