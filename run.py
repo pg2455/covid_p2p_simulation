@@ -54,7 +54,7 @@ def base(toy_human):
     cf.go_offline()
 
     monitors = run_simu(
-        n_stores=20, n_people=1000, n_parks=10, n_misc=20,
+        n_people=1000,
         init_percent_sick=0.01, store_capacity=30, misc_capacity=30,
         start_time=datetime.datetime(2020, 2, 28, 0, 0),
         simulation_days=30,
@@ -197,7 +197,7 @@ def run_simu(n_people=None, init_percent_sick=0, store_capacity=30, misc_capacit
     #         surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3]
     #     ) for i in range(n_misc)
     # ]
-    city = City(env, n_people, rng, city_x_range, city_y_range)
+    city = City(env, n_people, rng, city_x_range, city_y_range, start_time, init_percent_sick)
 
     humans = [
         Human(

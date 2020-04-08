@@ -41,7 +41,7 @@ LOCATION_DISTRIBUTION = {
         "surface_prob": [0.1, 0.1, 0.3, 0.2, 0.3],
         "rnd_capacity": None,
     },
-    "house":{
+    "household":{
         "n" : 2.6,
         "area": 0.30,
         "social_contact_factor": 1.0,
@@ -76,7 +76,7 @@ HUMAN_DISTRIBUTION = {
     (1,15): {
         "p":0.15,
         "residence_preference":{
-            "house_size":[0.0, 0.1, 0.3, 0.3, 0.1],
+            "house_size":[0.0, 0.2, 0.3, 0.3, 0.2],
             "senior_residency":0.0
         },
         "profession_profile":{

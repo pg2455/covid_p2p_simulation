@@ -2,7 +2,9 @@ import simpy
 import math
 import datetime
 import itertools
-from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION
+import numpy as np
+
+from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION
 from utils import compute_distance, _get_random_area
 from collections import defaultdict
 
@@ -41,13 +43,15 @@ class Env(simpy.Environment):
 
 class City(object):
 
-    def __init__(self, env, n_people, rng, x_range, y_range):
+    def __init__(self, env, n_people, rng, x_range, y_range, start_time, init_percent_sick):
         self.env = env
         self.rng = rng
         self.x_range = x_range
         self.y_range = y_range
         self.total_area = (x_range[1]-x_range[0])*(y_range[1]-y_range[0])
         self.n_people = n_people
+        self.start_time = start_time
+        self.init_percent_sick = init_percent_sick
         self.initialize_locations()
         self.initialize_humans()
         # self.stores = stores
@@ -71,24 +75,43 @@ class City(object):
                     lon=self.rng.randint(*self.y_range),
                     area=area[i],
                     social_contact_factor=specs['social_contact_factor'],
-                    capacity= None if not specs['rnd_capacity'] else self.rng.randint(*specs['rnd_capacity'])
+                    capacity= None if not specs['rnd_capacity'] else self.rng.randint(*specs['rnd_capacity']),
+                    surface_prob = specs['surface_prob']
                 )
             for i in range(n)]
-            setattr(self, location, locs)
+            setattr(self, f"{location}s", locs)
 
     def initialize_humans(self):
-
-        for age_bin, specs in HUMAN_DISTRIBUTION.iteritems():
+        count_humans = 0
+        for age_bin, specs in HUMAN_DISTRIBUTION.items():
             n = math.ceil(specs['p'] * self.n_people)
             ages = self.rng.randint(*age_bin, size=n)
 
             senior_residency_preference = specs['residence_preference']['senior_residency']
             house_preference = 1 - senior_residency_preference
-            house_preference = house_preference * np.array(specs['residence_preference']['house_size'])
+            house_size_pref = np.array(specs['residence_preference']['house_size'])
+            house_size_pref /= house_size_pref.sum()
+            house_preference = house_preference * house_size_pref
             residence = self.rng.choice(range(6), p = [senior_residency_preference] + house_preference.tolist(), size=n)
+
+            for i in range(n):
+                count_humans += i
+                house = allocate_house(self.households, ages[i])
+                Human(
+                    env=self.env,
+                    rng=self.rng,
+                    name=count_humans,
+                    age=ages[i],
+                    household=self.households[i],
+                    workplace=self.workplaces[i],
+                    rho=0.6,
+                    gamma=0.21,
+                    infection_timestamp=self.start_time if i < self.n_people * self.init_percent_sick else None
+                )
 
             p = [specs['profession_profile']['healthcare']] + [specs['profession_profile']['school']] + specs['profession_profile']['others']
             work_preference = self.rng.binomial(range(3), p=p, size=n)
+            import pdb; pdb.set_trace()
 
 
     @property
