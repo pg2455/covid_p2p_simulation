@@ -3,8 +3,148 @@
 LOCATION_TECH = 'gps' # &location-tech
 
 # CITY PARAMETERS
-OPENING_HOUR = 6 # @param
-CLOSING_HOUR = 24 # @param
+AGE_DISTRIBUTION = {
+    (0,20): 0.2,
+    (20,40):0.2,
+    (40,60):0.2,
+    (60,80):0.2,
+    (80, 100):0.2
+}
+
+# n - people per location
+LOCATION_DISTRIBUTION = {
+    "store":{
+        "n" : 50,
+        "area": 0.15,
+        "social_contact_factor": 0.6,
+        "surface_prob": [0.1, 0.1, 0.3, 0.2, 0.3],
+        "rnd_capacity": (30, 50),
+    },
+    "workplace": {
+        "n" : 50,
+        "area": 0.2,
+        "social_contact_factor": 0.3,
+        "surface_prob": [0.1, 0.1, 0.3, 0.2, 0.3],
+        "rnd_capacity": None,
+    },
+    "school":{
+        "n" : 100,
+        "area": 0.05,
+        "social_contact_factor": 0.8,
+        "surface_prob": [0.1, 0.1, 0.3, 0.2, 0.3],
+        "rnd_capacity": None,
+    },
+    "senior_residency":{
+        "n" : 100,
+        "area": 0.05,
+        "social_contact_factor": 0.8,
+        "surface_prob": [0.1, 0.1, 0.3, 0.2, 0.3],
+        "rnd_capacity": None,
+    },
+    "house":{
+        "n" : 2.6,
+        "area": 0.30,
+        "social_contact_factor": 1.0,
+        "surface_prob": [0.1, 0.1, 0.3, 0.2, 0.3],
+        "rnd_capacity": None,
+    },
+    "park":{
+        "n" : 50,
+        "area": 0.05,
+        "social_contact_factor": 0.2,
+        "surface_prob": [0.8, 0.05, 0.05, 0.05, 0.05],
+        "rnd_capacity": None,
+    },
+    "misc":{
+        "n" : 30,
+        "area": 0.15,
+        "social_contact_factor": 0.8,
+        "surface_prob": [0.1, 0.1, 0.3, 0.2, 0.3],
+        "rnd_capacity": (30,50),
+    },
+    "healthcare":{
+        "n": 100,
+        "area": 0.05,
+        "social_contact_factor": 0.4,
+        "surface_prob": [0.0, 0.0, 0.0, 0.0, 1.0],
+        "rnd_capacity": (40,100)
+    }
+}
+
+# house_size: 1 2 3 4 5
+HUMAN_DISTRIBUTION = {
+    (1,15): {
+        "p":0.15,
+        "residence_preference":{
+            "house_size":[0.0, 0.1, 0.3, 0.3, 0.1],
+            "senior_residency":0.0
+        },
+        "profession_profile":{
+            "healthcare":0.0,
+            "others":1.0
+        }
+    },
+    (15,20):{
+        "p":0.05,
+        "residence_preference":{
+            "house_size":[0.05, 0.05, 0.1, 0.3, 0.5],
+            "senior_residency":0.0
+        },
+        "profession_profile":{
+            "healthcare":0.0,
+            "others":1.0
+        }
+    },
+    (20,40):{
+        "p":0.2,
+        "residence_preference":{
+            "house_size":[0.2, 0.3, 0.25, 0.15, 0.1],
+            "senior_residency":0.0
+        },
+        "profession_profile": {
+                "healthcare":0.1,
+                "others":0.9
+        },
+
+    },
+    (40,60):{
+        "p":0.2,
+        "residence_preference":{
+            "house_size":[0.05, 0.3, 0.3, 0.15, 0.2],
+            "senior_residency":0.0
+        },
+        "profession_profile": {
+                "healthcare":0.1,
+                "others":0.9
+        },
+
+    },
+    (60,80):{
+        "p":0.2,
+        "residence_preference":{
+            "house_size":[0.1, 0.4, 0.2, 0.2, 0.1],
+            "senior_residency":0.7
+        },
+        "profession_profile": {
+                "healthcare":0.1,
+                "others":0.9
+        },
+
+    },
+    (80,100):{
+        "p":0.2,
+        "residence_preference":{
+            "house_size":[0.05, 0.5, 0.1, 0.25, 0.1],
+            "senior_residency":0.9
+        },
+        "profession_profile":{
+                "healthcare":0.1,
+                "others":0.9
+        },
+
+    }
+}
+
 
 # INDIVIDUAL DIFFERENCES PARAMETERS
 WORK_FROM_HOME = False

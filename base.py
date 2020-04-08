@@ -1,9 +1,12 @@
 import simpy
+import math
 import datetime
 import itertools
-from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION
-from utils import compute_distance
+from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION
+from utils import compute_distance, _get_random_area
 from collections import defaultdict
+
+from track import Tracker
 
 class Env(simpy.Environment):
 
@@ -35,21 +38,57 @@ class Env(simpy.Environment):
         return self.timestamp.isoformat()
 
 
+
 class City(object):
 
-    def __init__(self, stores, parks, humans, miscs):
-        self.stores = stores
-        self.parks = parks
-        self.humans = humans
-        self.miscs = miscs
+    def __init__(self, env, n_people, rng, x_range, y_range):
+        self.env = env
+        self.rng = rng
+        self.x_range = x_range
+        self.y_range = y_range
+        self.total_area = (x_range[1]-x_range[0])*(y_range[1]-y_range[0])
+        self.n_people = n_people
+        self.initialize_locations()
+        self.initialize_humans()
+        # self.stores = stores
+        # self.parks = parks
+        # self.humans = humans
+        # self.miscs = miscs
         self._compute_preferences()
-        self.contacts = {
-                'all':defaultdict(lambda : {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}),
-                'infectious': {
-                    'human': defaultdict(lambda : {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}),
-                    'environment': {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}
-                }
-            }
+        self.tracker = Tracker(self)
+
+    def initialize_locations(self):
+        for location, specs in LOCATION_DISTRIBUTION.items():
+            n = math.ceil(specs["n"]/self.n_people)
+            area = _get_random_area(n, specs['area'] * self.total_area, self.rng)
+            locs = [
+                Location(
+                    env=self.env,
+                    rng=self.rng,
+                    name=f"{location}:{i}",
+                    location_type=location,
+                    lat=self.rng.randint(*self.x_range),
+                    lon=self.rng.randint(*self.y_range),
+                    area=area[i],
+                    social_contact_factor=specs['social_contact_factor'],
+                    capacity= None if not specs['rnd_capacity'] else self.rng.randint(*specs['rnd_capacity'])
+                )
+            for i in range(n)]
+            setattr(self, location, locs)
+
+    def initialize_humans(self):
+
+        for age_bin, specs in HUMAN_DISTRIBUTION.iteritems():
+            n = math.ceil(specs['p'] * self.n_people)
+            ages = self.rng.randint(*age_bin, size=n)
+
+            senior_residency_preference = specs['residence_preference']['senior_residency']
+            house_preference = 1 - senior_residency_preference
+            house_preference = house_preference * np.array(specs['residence_preference']['house_size'])
+            residence = self.rng.choice(range(6), p = [senior_residency_preference] + house_preference.tolist(), size=n)
+
+            p = [specs['profession_profile']['healthcare']] + [specs['profession_profile']['school']] + specs['profession_profile']['others']
+            work_preference = self.rng.binomial(range(3), p=p, size=n)
 
 
     @property
@@ -65,8 +104,12 @@ class City(object):
 
 class Location(simpy.Resource):
 
-    def __init__(self, env, rng, area, capacity=simpy.core.Infinity, name='Safeway', location_type='stores', lat=None, lon=None,
-                 cont_prob=None, surface_prob = [0.2, 0.2, 0.2, 0.2, 0.2]):
+    def __init__(self, env, rng, area, name, location_type, lat, lon,
+            social_contact_factor, capacity, surface_prob):
+
+        if capacity is None:
+            capacity = simpy.core.Infinity
+
         super().__init__(env, capacity)
         self.humans = set()
         self.name = name
@@ -75,7 +118,7 @@ class Location(simpy.Resource):
         self.lon = lon
         self.area = area
         self.location_type = location_type
-        self.social_contact_factor = cont_prob
+        self.social_contact_factor = social_contact_factor
         self.env = env
         self.contamination_timestamp = datetime.datetime.min
         self.contaminated_surface_probability = surface_prob

@@ -73,23 +73,22 @@ def base(toy_human):
 def tune():
     from simulator import Human
     import pandas as pd
-    from monitors import ContactMonitor
     import cufflinks as cf
     cf.go_offline()
-    monitors = run_simu(
-        n_stores=20, n_people=100, n_parks=10, n_misc=20,
-        init_percent_sick=0.01, store_capacity=30, misc_capacity=30,
+    monitors, tracker = run_simu(n_people=100, init_percent_sick=0.01,
+        store_capacity=30, misc_capacity=30,
         start_time=datetime.datetime(2020, 2, 28, 0, 0),
-        simulation_days=60,
+        simulation_days=30,
         outfile=None,
-        print_progress=True, seed=0, Human=Human, other_monitors=[ContactMonitor(1440)]
+        print_progress=True, seed=0, Human=Human, other_monitors=[]
     )
     stats = monitors[1].data
     x = pd.DataFrame.from_dict(stats).set_index('time')
 
     contacts = monitors[-1].data
-    x = pd.DataFrame.from_dict(contacts)
     import pdb; pdb.set_trace()
+    x = pd.DataFrame.from_dict(contacts)
+
     fig = x.iplot(kind='heatmap')
     fig.show()
     import pdb; pdb.set_trace()
@@ -105,8 +104,7 @@ def test():
     runner = unittest.TextTestRunner()
     runner.run(suite)
 
-def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
-             init_percent_sick=0, store_capacity=30, misc_capacity=30,
+def run_simu(n_people=None, init_percent_sick=0, store_capacity=30, misc_capacity=30,
              start_time=datetime.datetime(2020, 2, 28, 0, 0),
              simulation_days=10,
              outfile=None,
@@ -115,89 +113,98 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
     if Human is None:
         from simulator import Human
 
+    # n_stores, n_workplaces, n_schools, n_senior_residencies, n_houses, n_parks, n_miscs = City.setup_locations(n_people)
+
     rng = np.random.RandomState(seed)
     env = Env(start_time)
-    city_limit = ((0, 1000), (0, 1000))
-    total_area = (city_limit[0][1]-city_limit[0][0])*(city_limit[1][1]-city_limit[1][0])
-    area_dict = {'store':_get_random_area('store', n_stores, total_area, rng),
-                 'park':_get_random_area('park',n_parks, total_area, rng),
-                 'misc':_get_random_area('misc',n_misc, total_area, rng),
-                 'household':_get_random_area('household', int(n_people/2), total_area, rng),
-                 'workplace':_get_random_area('workplace', int(n_people/30), total_area, rng)}
+    # city_limit = ((0, 1000), (0, 1000))
+    city_x_range = (0,1000)
+    city_y_range = (0,1000)
+    # total_area = (city_limit[0][1]-city_limit[0][0])*(city_limit[1][1]-city_limit[1][0])
+    # area_dict = {
+    #         'store':_get_random_area('store', n_stores, total_area, rng),
+    #         'workplace':_get_random_area('workplace', n_workplaces, total_area, rng),
+    #         'school':_get_random_area('school', n_schools, total_area, rng),
+    #         'senior_residency':_get_random_area('senior_residency', n_senior_residencies, total_area, rng),
+    #         'park':_get_random_area('park', n_parks, total_area, rng),
+    #         'misc':_get_random_area('misc', n_miscs, total_area, rng),
+    #         'household':_get_random_area('household', n_houses, total_area, rng),
+    #         }
 
-    stores = [
-        Location(
-            env, rng,
-            capacity=_draw_random_discreet_gaussian(store_capacity, int(0.5 * store_capacity), rng),
-            cont_prob=0.6,
-            location_type='store',
-            name=f'store{i}',
-            area = area_dict['store'][i],
-            lat=rng.randint(*city_limit[0]),
-            lon=rng.randint(*city_limit[1]),
-            surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3]
-        )
-        for i in range(n_stores)]
-
-    parks = [
-        Location(
-            env, rng,
-            cont_prob=0.05,
-            name=f'park{i}',
-            area = area_dict['park'][i],
-            location_type='park',
-            lat=rng.randint(*city_limit[0]),
-            lon=rng.randint(*city_limit[1]),
-            surface_prob=[0.7, 0.05, 0.05, 0.1, 0.1]
-        )
-        for i in range(n_parks)
-    ]
-    households = [
-        Location(
-            env, rng,
-            cont_prob=1,
-            name=f'household{i}',
-            location_type='household',
-            area = area_dict['household'][i],
-            lat=rng.randint(*city_limit[0]),
-            lon=rng.randint(*city_limit[1]),
-            surface_prob=[0.05, 0.05, 0.05, 0.05, 0.8]
-        )
-        for i in range(int(n_people / 2))
-    ]
-    workplaces = [
-        Location(
-            env, rng,
-            cont_prob=0.3,
-            name=f'workplace{i}',
-            location_type='workplace',
-            area = area_dict['workplace'][i],
-            lat=rng.randint(*city_limit[0]),
-            lon=rng.randint(*city_limit[1]),
-            surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3]
-        )
-        for i in range(int(n_people / 30))
-    ]
-    miscs = [
-        Location(
-            env, rng,
-            cont_prob=1,
-            capacity=_draw_random_discreet_gaussian(misc_capacity, int(0.5 * misc_capacity), rng),
-            name=f'misc{i}',
-            area = area_dict['misc'][i],
-            location_type='misc',
-            lat=rng.randint(*city_limit[0]),
-            lon=rng.randint(*city_limit[1]),
-            surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3]
-        ) for i in range(n_misc)
-    ]
+    # stores = [
+    #     Location(
+    #         env, rng,
+    #         area = area_dict['store'][i],
+    #         name=f'store{i}',
+    #         location_type='store',
+    #         lat=rng.randint(*city_limit[0]),
+    #         lon=rng.randint(*city_limit[1]),
+    #         social_contact_factor=0.6,
+    #         surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3],
+    #         capacity=_draw_random_discreet_gaussian(store_capacity, int(0.5 * store_capacity), rng),
+    #     )
+    #     for i in range(n_stores)]
+    #
+    # parks = [
+    #     Location(
+    #         env, rng,
+    #         social_contact_factor=0.05,
+    #         name=f'park{i}',
+    #         area = area_dict['park'][i],
+    #         location_type='park',
+    #         lat=rng.randint(*city_limit[0]),
+    #         lon=rng.randint(*city_limit[1]),
+    #         surface_prob=[0.7, 0.05, 0.05, 0.1, 0.1]
+    #     )
+    #     for i in range(n_parks)
+    # ]
+    # households = [
+    #     Location(
+    #         env, rng,
+    #         social_contact_factor=1,
+    #         name=f'household{i}',
+    #         location_type='household',
+    #         area = area_dict['household'][i],
+    #         lat=rng.randint(*city_limit[0]),
+    #         lon=rng.randint(*city_limit[1]),
+    #         surface_prob=[0.05, 0.05, 0.05, 0.05, 0.8]
+    #     )
+    #     for i in range(int(n_people / 2))
+    # ]
+    # workplaces = [
+    #     Location(
+    #         env, rng,
+    #         social_contact_factor=0.3,
+    #         name=f'workplace{i}',
+    #         location_type='workplace',
+    #         area = area_dict['workplace'][i],
+    #         lat=rng.randint(*city_limit[0]),
+    #         lon=rng.randint(*city_limit[1]),
+    #         surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3]
+    #     )
+    #     for i in range(int(n_people / 30))
+    # ]
+    # miscs = [
+    #     Location(
+    #         env, rng,
+    #         social_contact_factor=1,
+    #         capacity=_draw_random_discreet_gaussian(misc_capacity, int(0.5 * misc_capacity), rng),
+    #         name=f'misc{i}',
+    #         area = area_dict['misc'][i],
+    #         location_type='misc',
+    #         lat=rng.randint(*city_limit[0]),
+    #         lon=rng.randint(*city_limit[1]),
+    #         surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3]
+    #     ) for i in range(n_misc)
+    # ]
+    city = City(env, n_people, rng, city_x_range, city_y_range)
 
     humans = [
         Human(
             env=env,
             name=i,
             rng=rng,
-            age=_get_random_age(rng),
+            age=_get_random_age_multinomial(rng),
             infection_timestamp=start_time if i < n_people * init_percent_sick else None,
             household=rng.choice(households),
             workplace=rng.choice(workplaces),
@@ -222,7 +229,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
     for m in monitors:
         env.process(m.run(env, city=city))
     env.run(until=simulation_days * 24 * 60 / TICK_MINUTE)
-    return monitors
+    return monitors, city.tracker
 
 
 if __name__ == "__main__":

@@ -81,7 +81,6 @@ class Human(object):
         self.has_logged_test = False
         self.n_infectious_contacts = 0
         self.last_state = self.state
-        self.contacts_made = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0} # 0:0-20, 1:20-40 2:40-60 3:60-80
 
         # habits
         self.avg_shopping_time = _draw_random_discreet_gaussian(AVG_SHOP_TIME_MINUTES, SCALE_SHOP_TIME_MINUTES, self.rng)
@@ -421,12 +420,15 @@ class Human(object):
             if h == self or self.location.location_type == 'household':
                 continue
 
-            city.contacts['all'][int(self.age / 20)][int(h.age / 20)] += 1
             distance =  np.sqrt(int(area/len(self.location.humans))) + self.rng.randint(MIN_DIST_ENCOUNTER, MAX_DIST_ENCOUNTER)
             t_near = min(self.leaving_time, getattr(h, "leaving_time", 60)) - max(self.start_time, getattr(h, "start_time", 60))
             is_exposed = False
-            p_infection = 3 * h.infectiousness * (h.is_asymptomatic  * h.asymptomatic_infection_ratio  + 1.0 * (not h.is_asymptomatic)) # &prob_infectious
-            x_human = distance <= INFECTION_RADIUS and t_near * TICK_MINUTE > INFECTION_DURATION and self.rng.random() < p_infection
+
+            ratio = h.asymptomatic_infection_ratio  if h.is_asymptomatic else 1.0
+            p_infection = h.infectiousness * ratio # &prob_infectious
+            contact_condition = distance <= INFECTION_RADIUS and t_near * TICK_MINUTE > INFECTION_DURATION
+
+            x_human =  contact_condition and self.rng.random() < p_infection
             x_environment = self.rng.random() < 0.01 * location.contamination_probability # &prob_infection
             if x_human or x_environment:
                 if self.is_susceptible:
@@ -435,13 +437,16 @@ class Human(object):
                     Event.log_exposed(self, self.env.timestamp)
 
                     if x_human:
-                        city.contacts['infectious']['human'][int(h.age / 20)][int(self.age / 20)] += 1
+                        city.tracker.track_infection('human', from_human=h, to_human=self, location=location)
 
                     if x_environment:
-                        city.contacts['infectious']['environment'][int(self.age / 20)] += 1
+                        city.tracker.track_infection('env', from_human=None, to_human=self, location=location)
 
             if self.is_susceptible and is_exposed:
                 self.infection_timestamp = self.env.timestamp
+
+            if contact_condition:
+                city.tracker.track_contact(human1=self, human2=h, location=location)
 
             Event.log_encounter(self, h,
                                 location=location,

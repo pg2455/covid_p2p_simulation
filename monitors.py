@@ -64,34 +64,6 @@ class SEIRMonitor(BaseMonitor):
 
             yield env.timeout(self.f / TICK_MINUTE)
 
-
-class ContactMonitor(BaseMonitor):
-    def run(self, env, city: City):
-
-        while True:
-            all_contacts = pd.DataFrame(city.contacts['all'])
-            if all_contacts.size != 0 :
-                # all_contacts = all_contacts[[0, 1, 2, 3, 4, 5]]
-                pass
-
-            inf_contacts = pd.DataFrame(city.contacts['infectious']['human'])
-            if inf_contacts.size != 0:
-                # import pdb; pdb.set_trace()
-                # inf_contacts = inf_contacts[[0, 1, 2, 3, 4, 5]]
-                pass
-
-            env_transmission = city.contacts['infectious']['environment']
-
-            # print(all_contacts)
-            # print(inf_contacts)
-            # print(env_transmission)
-            self.data = {
-                    'all_contacts': all_contacts,
-                    'inf_contacts':inf_contacts,
-                    "env_transmission":env_transmission
-                    }
-            yield env.timeout(self.f / TICK_MINUTE)
-
 class PlotMonitor(BaseMonitor):
 
     def run(self, env, city: City):

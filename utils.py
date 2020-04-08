@@ -9,7 +9,7 @@ def _normalize_scores(scores):
 # &canadian-demgraphics
 def _get_random_age(rng):
 	# random normal centered on 50 with stdev 25
-	draw = rng.normal(50, 10, 1)
+	draw = rng.normal(50, 25, 1)
 	if draw < 0:
 		# if below 0, shift to a bump centred around 30
 		age = round(30 + rng.normal(0, 4))
@@ -17,15 +17,34 @@ def _get_random_age(rng):
 		age = round(float(draw))
 	return age
 
+
+# &canadian-demgraphics
+def _get_random_age_mutlinomial(AGE_DISTRIBUTION, rng):
+    x = list(zip(*AGE_DISTRIBUTION.items()))
+    idx = rng.choice(range(len(x[0])), p=x[1])
+    age_group = x[0][idx]
+    return rng.uniform(age_group[0], age_group[1])
+
 def _get_random_area(location_type, num, total_area, rng):
 	''' Using Dirichlet distribution since it generates a "distribution of probabilities"
 	which will ensure that the total area allotted to a location type remains conserved
 	while also maintaining a uniform distribution'''
-	perc_dist = {"store":0.15, "misc":0.15, "workplace":0.2, "household":0.3, "park":0.5}
+	perc_dist = {"store":0.15, "misc":0.15, "workplace":0.2, "household":0.3, "park":0.05, "school":0.05, "senior_residency":0.05}
 
 	# Keeping max at area/2 to ensure no location is allocated more than half of the total area allocated to its location type
 	area = rng.dirichlet(np.ones(math.ceil(num/2)))*(perc_dist[location_type]*total_area/2)
 	area = np.append(area,rng.dirichlet(np.ones(math.floor(num/2)))*(perc_dist[location_type]*total_area/2))
+
+	return area
+
+def _get_random_area(num, total_area, rng):
+	''' Using Dirichlet distribution since it generates a "distribution of probabilities"
+	which will ensure that the total area allotted to a location type remains conserved
+	while also maintaining a uniform distribution'''
+
+	# Keeping max at area/2 to ensure no location is allocated more than half of the total area allocated to its location type
+	area = rng.dirichlet(np.ones(math.ceil(num/2)))*(total_area/2)
+	area = np.append(area,rng.dirichlet(np.ones(math.floor(num/2)))*(total_area/2))
 
 	return area
 
