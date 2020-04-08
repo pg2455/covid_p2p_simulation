@@ -3,6 +3,7 @@ from base import City
 from simulator import Human
 from matplotlib import pyplot as plt
 from collections import Counter
+import collections
 import json
 import pylab as pl
 import pickle
@@ -16,7 +17,7 @@ class BaseMonitor(object):
     def __init__(self, f=None):
         self.data = []
         self.f = f or 60
-        self.count=0
+        self.s=collections.defaultdict(list)
 
     def run(self, env, city: City):
         raise NotImplementedError
@@ -73,18 +74,16 @@ class InfectionMonitor(BaseMonitor):
                 'park':0,
                 'workplace':0,
                 'misc':0,
-                'household':0
+                'household':0,
             }
-            for l in d.keys():
-                d[l] = sum([h.is_infectious for h in city.humans if h.location.location_type==l])
-            # self.data = d if len(self.data)==0 else Counter(self.data).update(Counter(d)) 
-            if len(self.data)==0:
-                self.data=d
-            else:
-                d1 = Counter(self.data)
-                d2 = Counter(d)
-                d1.update(d2)
-                self.data = dict(d1)
+            for h in city.humans:
+                if len(self.s[h.name])!=0:
+                    if (self.s[h.name][0] and h.state[1]) or (self.s[h.name][1] and h.state[2]):
+                        d[h.location.location_type]+=1
+                    self.s[h.name] = h.state
+                else:
+                    self.s[h.name] = h.state
+            self.data = d if not len(self.data) else Counter(self.data)+Counter(d)        
             yield env.timeout(self.f / TICK_MINUTE)
     
     def avg(self):
