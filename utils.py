@@ -246,3 +246,8 @@ def _json_serialize(o):
 
 def compute_distance(loc1, loc2):
     return np.sqrt((loc1.lat - loc2.lat) ** 2 + (loc1.lon - loc2.lon) ** 2)
+
+
+class PatchedRNG(np.random.RandomState):
+    def random(self):
+        return self.uniform(0, 1)
