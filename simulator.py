@@ -182,51 +182,53 @@ class Human(object):
         # and a bit more if you're younger
         symptoms = None
         if self.is_asymptomatic or self.is_susceptible:
-            pass
+            rand = self.rng.uniform(0, 1, size=(8,)).tolist()
         else:
             time_since_exposed = self.env.timestamp - self.infection_timestamp
             symptom_start = datetime.timedelta(abs(self.rng.normal(SYMPTOM_DAYS, 2.5)))
+            # Sample once?
+            rand = self.rng.uniform(0, 1, size=(15,)).tolist()
             #  print (time_since_sick)
             #  print (symptom_start)
             if time_since_exposed >= symptom_start:
                 symptoms = ['mild']
                 if self.really_sick:
                     symptoms.append('severe')
-                if self.rng.rand() < 0.9:
+                if rand.pop() < 0.9:
                     symptoms.append('fever')
-                if self.rng.rand() < 0.85:
+                if rand.pop() < 0.85:
                     symptoms.append('cough')
-                if self.rng.rand() < 0.8:
+                if rand.pop() < 0.8:
                     symptoms.append('fatigue')
-                if self.rng.rand() < 0.7:
+                if rand.pop() < 0.7:
                     symptoms.append('trouble_breathing')
-                if self.rng.rand() < 0.1:
+                if rand.pop() < 0.1:
                     symptoms.append('runny_nose')
-                if self.rng.rand() < 0.4:
+                if rand.pop() < 0.4:
                     symptoms.append('loss_of_taste')
-                if self.rng.rand() < 0.4:
+                if rand.pop() < 0.4:
                     symptoms.append('gastro')
         if self.has_cold:
             if symptoms is None:
                 symptoms = ['mild', 'runny_nose']
-            if self.rng.rand() < 0.2:
+            if rand.pop() < 0.2:
                 symptoms.append('fever')
-            if self.rng.rand() < 0.6:
+            if rand.pop() < 0.6:
                 symptoms.append('cough')
         if self.has_flu:
             if symptoms is None:
                 symptoms = ['mild']
-            if self.rng.rand() < 0.2:
+            if rand.pop() < 0.2:
                 symptoms.append('severe')
-            if self.rng.rand() < 0.8:
+            if rand.pop() < 0.8:
                 symptoms.append('fever')
-            if self.rng.rand() < 0.4:
+            if rand.pop() < 0.4:
                 symptoms.append('cough')
-            if self.rng.rand() < 0.8:
+            if rand.pop() < 0.8:
                 symptoms.append('fatigue')
-            if self.rng.rand() < 0.8:
+            if rand.pop() < 0.8:
                 symptoms.append('aches')
-            if self.rng.rand() < 0.5:
+            if rand.pop() < 0.5:
                 symptoms.append('gastro')
         return symptoms
 
