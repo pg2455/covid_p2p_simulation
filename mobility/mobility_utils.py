@@ -1,7 +1,7 @@
 from collections import namedtuple
 import numpy as np
 
-import mobility_config as mcfg
+from mobility import mobility_config as mcfg
 from math import sin, cos, sqrt, atan2, radians
 
 

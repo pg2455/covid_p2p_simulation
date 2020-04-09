@@ -11,12 +11,10 @@ import networkx as nx
 from addict import Dict
 
 
-from utils import _draw_random_discreet_gaussian, compute_distance, get_random_word
-from config import TICK_MINUTE
+from utils import get_random_word
 from base import Env
-import mobility_config as mcfg
-import mobility_utils as mutl
-from mobility_topology import NaiveTopology
+from mobility import mobility_config as mcfg, mobility_utils as mutl
+from mobility.mobility_topology import NaiveTopology
 
 # This is to prevent circular imports
 # noinspection PyUnreachableCode

@@ -3,8 +3,7 @@ import networkx as nx
 from addict import Dict
 import itertools
 
-import mobility_config as mcfg
-import mobility_utils as mutl
+from mobility import mobility_config as mcfg, mobility_utils as mutl
 
 
 class Topology(object):
@@ -14,7 +13,7 @@ class Topology(object):
 
 class NaiveTopology(Topology):
     def build_graph(self, env, locations):
-        from mobility_engine import Transit, PublicTransitStation
+        from mobility.mobility_engine import Transit, PublicTransitStation
 
         graph = nx.MultiGraph()
         # Add stores, parks, households as nodes

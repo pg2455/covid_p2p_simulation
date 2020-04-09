@@ -2,10 +2,10 @@ import datetime
 import numpy as np
 
 from base import Env
-from mobility_engine import City, Location, PublicTransitStation
-import mobility_config as mcfg
+from mobility.mobility_engine import City, Location, PublicTransitStation
+from mobility import mobility_config as mcfg
 from simulator import Human
-from monitors import EventMonitor, TimeMonitor, SEIRMonitor
+from monitors import EventMonitor, SEIRMonitor
 from utils import _get_random_age
 from config import TICK_MINUTE
 

@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
-import simpy
 
-import itertools
 import numpy as np
 from collections import defaultdict
-import datetime
 from typing import List
 from contextlib import suppress
 
-from utils import _normalize_scores, _get_random_age, _get_random_sex, _get_preexisting_conditions, _draw_random_discreet_gaussian, _json_serialize, _sample_viral_load_piecewise, _get_random_area
+from utils import _normalize_scores, _get_random_age, _get_random_sex, _get_preexisting_conditions, _draw_random_discreet_gaussian, \
+    _sample_viral_load_piecewise
 from config import *  # PARAMETERS
 from base import *
 
-import mobility_config as mcfg
-from mobility_engine import City, Trip, ExcursionType
-import mobility_utils as mutls
+from mobility import mobility_config as mcfg, mobility_utils as mutls
+from mobility.mobility_engine import City, Trip, ExcursionType
 
 
 class Visits:
