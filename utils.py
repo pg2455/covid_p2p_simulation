@@ -205,3 +205,10 @@ def _json_serialize(o):
 
 def compute_distance(loc1, loc2):
     return np.sqrt((loc1.lat - loc2.lat) ** 2 + (loc1.lon - loc2.lon) ** 2)
+    
+def _get_random_household_capacity(rng):
+    draw = rng.choice(np.arange(1, 6), p=[0.28, 0.35, 0.15, 0.14, 0.08])
+    if draw == 5:
+        return rng.randint(5,9)
+    else:
+        return draw

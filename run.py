@@ -1,6 +1,6 @@
 from monitors import EventMonitor, TimeMonitor, SEIRMonitor
 from base import *
-from utils import _draw_random_discreet_gaussian, _get_random_age, _get_random_area
+from utils import _draw_random_discreet_gaussian, _get_random_age, _get_random_area, _get_random_household_capacity
 import datetime
 import click
 from config import TICK_MINUTE
@@ -140,8 +140,9 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
             lat=rng.randint(*city_limit[0]),
             lon=rng.randint(*city_limit[1]),
             surface_prob=[0.05, 0.05, 0.05, 0.05, 0.8]
+            capacity=_get_random_household_capacity(rng)
         )
-        for i in range(math.ceil(n_people / 2))
+        for i in range(math.ceil(n_people / AVERAGE_HOUSEHOLD_SIZE))
     ]
     workplaces = [
         Location(
@@ -170,6 +171,19 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
         ) for i in range(n_misc)
     ]
 
+    new_dict = {}
+    for i in households:
+        new_dict[i.name] = 0, i.capacity
+
+    def _assign_household(rng):
+        household = rng.choice(households)
+        occ, cap = new_dict[household.name]
+        if (occ < cap):
+            new_dict[household.name] = occ + 1, cap
+        else:
+            _assign_household(rng)
+        return household
+
     humans = [
         Human(
             env=env,
@@ -177,7 +191,7 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
             rng=rng,
             age=_get_random_age(rng),
             infection_timestamp=start_time if i < n_people * init_percent_sick else None,
-            household=rng.choice(households),
+            household=_assign_household(rng),
             workplace=rng.choice(workplaces)
         )
         for i in range(n_people)]
