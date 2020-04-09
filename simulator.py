@@ -30,13 +30,14 @@ class Visits:
 
 class Human(object):
 
-    def __init__(self, env, name, age, rng, infection_timestamp, household, workplace, rho=0.3, gamma=0.21, symptoms=None,
+    def __init__(self, env, name, age, rng, infection_timestamp, household, workplace, profession, rho=0.3, gamma=0.21, symptoms=None,
                  test_results=None):
         self.env = env
         self.events = []
         self.name = name
         self.age = age
         self.rng = rng
+        self.profession = profession
 
         # probability of being asymptomatic is basically 50%, but a bit less if you're older
         # and a bit more if you're younger
@@ -291,12 +292,12 @@ class Human(object):
         while True:
 
             if self.is_infectious and self.has_logged_symptoms is False:
-                Event.log_symptom_start(self, self.env.timestamp, True)
+                Event.log_symptom_start(self, True, self.env.timestamp)
                 self.has_logged_symptoms = True
 
             if self.is_infectious and self.env.timestamp - self.infection_timestamp > datetime.timedelta(days=TEST_DAYS) and not self.has_logged_test:
                 result = self.rng.random() > 0.8
-                Event.log_test(self, self.env.timestamp, result)
+                Event.log_test(self, result, self.env.timestamp)
                 self.has_logged_test = True
                 assert self.has_logged_symptoms is True # FIXME: assumption might not hold
 
@@ -308,6 +309,7 @@ class Human(object):
                     self.recovered_timestamp = self.env.timestamp
                     dead = False
 
+                print(self.name, "I am dead")
                 self.update_r(self.env.timestamp - self.infection_timestamp)
                 self.infection_timestamp = None
                 if dead:
@@ -410,6 +412,8 @@ class Human(object):
             # print(self.env.timestamp.strftime("%a, %b %d, %H %M"), self.location.name, "-->", location.name, duration)
             pass
 
+        city.tracker.track_trip(from_location=self.location.location_type, to_location=location.location_type, age=self.age, hour=self.env.hour_of_day())
+
         self.location = location
         location.add_human(self)
         self.leaving_time = duration + self.env.now
@@ -437,10 +441,10 @@ class Human(object):
                     Event.log_exposed(self, self.env.timestamp)
 
                     if x_human:
-                        city.tracker.track_infection('human', from_human=h, to_human=self, location=location)
+                        city.tracker.track_infection('human', from_human=h, to_human=self, location=location, timestamp=self.env.timestamp)
 
                     if x_environment:
-                        city.tracker.track_infection('env', from_human=None, to_human=self, location=location)
+                        city.tracker.track_infection('env', from_human=None, to_human=self, location=location, timestamp=self.env.timestamp)
 
             if self.is_susceptible and is_exposed:
                 self.infection_timestamp = self.env.timestamp

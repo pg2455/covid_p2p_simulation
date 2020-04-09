@@ -4,7 +4,9 @@ import datetime
 import itertools
 import numpy as np
 
-from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION
+
+import copy
+from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION, MIN_AVG_HOUSE_AGE
 from utils import compute_distance, _get_random_area
 from collections import defaultdict
 
@@ -43,7 +45,7 @@ class Env(simpy.Environment):
 
 class City(object):
 
-    def __init__(self, env, n_people, rng, x_range, y_range, start_time, init_percent_sick):
+    def __init__(self, env, n_people, rng, x_range, y_range, start_time, init_percent_sick, Human):
         self.env = env
         self.rng = rng
         self.x_range = x_range
@@ -53,7 +55,10 @@ class City(object):
         self.start_time = start_time
         self.init_percent_sick = init_percent_sick
         self.initialize_locations()
-        self.initialize_humans()
+
+        self.humans = []
+        self.households = []
+        self.initialize_humans(Human)
         # self.stores = stores
         # self.parks = parks
         # self.humans = humans
@@ -61,28 +66,33 @@ class City(object):
         self._compute_preferences()
         self.tracker = Tracker(self)
 
+    def create_location(self, specs, type, name, area=None):
+        return   Location(
+                        env=self.env,
+                        rng=self.rng,
+                        name=f"{type}:{name}",
+                        location_type=type,
+                        lat=self.rng.randint(*self.x_range),
+                        lon=self.rng.randint(*self.y_range),
+                        area=area,
+                        social_contact_factor=specs['social_contact_factor'],
+                        capacity= None if not specs['rnd_capacity'] else self.rng.randint(*specs['rnd_capacity']),
+                        surface_prob = specs['surface_prob']
+                        )
+
     def initialize_locations(self):
         for location, specs in LOCATION_DISTRIBUTION.items():
-            n = math.ceil(specs["n"]/self.n_people)
+            if location in ['household']:
+                continue
+            n = math.ceil(self.n_people/specs["n"])
             area = _get_random_area(n, specs['area'] * self.total_area, self.rng)
-            locs = [
-                Location(
-                    env=self.env,
-                    rng=self.rng,
-                    name=f"{location}:{i}",
-                    location_type=location,
-                    lat=self.rng.randint(*self.x_range),
-                    lon=self.rng.randint(*self.y_range),
-                    area=area[i],
-                    social_contact_factor=specs['social_contact_factor'],
-                    capacity= None if not specs['rnd_capacity'] else self.rng.randint(*specs['rnd_capacity']),
-                    surface_prob = specs['surface_prob']
-                )
-            for i in range(n)]
+            locs = [self.create_location(specs, location, i, area[i]) for i in range(n)]
             setattr(self, f"{location}s", locs)
 
-    def initialize_humans(self):
+    def initialize_humans(self, Human):
         count_humans = 0
+        house_allocations = {2:[], 3:[], 4:[], 5:[]}
+        n_houses = 0
         for age_bin, specs in HUMAN_DISTRIBUTION.items():
             n = math.ceil(specs['p'] * self.n_people)
             ages = self.rng.randint(*age_bin, size=n)
@@ -94,24 +104,65 @@ class City(object):
             house_preference = house_preference * house_size_pref
             residence = self.rng.choice(range(6), p = [senior_residency_preference] + house_preference.tolist(), size=n)
 
-            for i in range(n):
-                count_humans += i
-                house = allocate_house(self.households, ages[i])
-                Human(
-                    env=self.env,
-                    rng=self.rng,
-                    name=count_humans,
-                    age=ages[i],
-                    household=self.households[i],
-                    workplace=self.workplaces[i],
-                    rho=0.6,
-                    gamma=0.21,
-                    infection_timestamp=self.start_time if i < self.n_people * self.init_percent_sick else None
-                )
+            professions = ['healthcare', 'school', 'others', 'retired']
+            p = [specs['profession_profile'][x] for x in professions]
+            profession = self.rng.choice(professions, p=p, size=n)
 
-            p = [specs['profession_profile']['healthcare']] + [specs['profession_profile']['school']] + specs['profession_profile']['others']
-            work_preference = self.rng.binomial(range(3), p=p, size=n)
-            import pdb; pdb.set_trace()
+            for i in range(n):
+                count_humans += 1
+                age = ages[i]
+
+                # residence
+                res_pref = residence[i]
+                if res_pref == 0:
+                    res = self.rng.choice(self.senior_residencys)
+                else:
+                    res = None
+                    if res_pref != 1:
+                        for x in house_allocations[res_pref]:
+                            if x[0] > 0 and age >= x[1]:
+                                res = x[2]
+                                break
+
+                    if res is None:
+                        res = self.create_location(LOCATION_DISTRIBUTION['household'], 'household', len(self.households))
+                        n_houses += 1
+                        self.households.append(res)
+
+                    if res_pref != 1:
+                        min_age = MIN_AVG_HOUSE_AGE * res_pref - sum([h.age for h in res.humans])
+                        house_allocations[res_pref].append((res_pref - len(res.humans), min_age, res))
+                        house_allocations[res_pref] = sorted(house_allocations[res_pref], key = lambda x: -x[0]) # fill the biggest spot first
+
+                # workplace
+                if profession[i] == "healthcare":
+                    workplace = self.rng.choice(self.healthcares + self.senior_residencys)
+                elif profession[i] == 'school':
+                    workplace = self.rng.choice(self.schools)
+                elif profession[i] == 'others':
+                    workplace = self.rng.choice(self.workplaces)
+                else:
+                    workplace = res
+
+
+                self.humans.append(Human(
+                        env=self.env,
+                        rng=self.rng,
+                        name=count_humans,
+                        age=age,
+                        household=res,
+                        workplace=workplace,
+                        profession=profession[i],
+                        rho=0.6,
+                        gamma=0.21,
+                        infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None
+                        )
+                    )
+
+
+        area = _get_random_area(n_houses, LOCATION_DISTRIBUTION['household']['area'] * self.total_area, self.rng)
+        for i,h in enumerate(self.households):
+            h.area = area[i]
 
 
     @property

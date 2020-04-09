@@ -3,7 +3,7 @@ from base import *
 from utils import _draw_random_discreet_gaussian, _get_random_age, _get_random_area
 import datetime
 import click
-from config import TICK_MINUTE
+from config import TICK_MINUTE, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION
 import numpy as np
 
 
@@ -74,25 +74,69 @@ def tune():
     from simulator import Human
     import pandas as pd
     import cufflinks as cf
+    import matplotlib.pyplot as plt
+    import networkx as nx
+    import seaborn as sns
+    from PIL import Image
+    import io
+    import glob
+
     cf.go_offline()
+
     monitors, tracker = run_simu(n_people=100, init_percent_sick=0.01,
         store_capacity=30, misc_capacity=30,
         start_time=datetime.datetime(2020, 2, 28, 0, 0),
-        simulation_days=30,
+        simulation_days=60,
         outfile=None,
         print_progress=True, seed=0, Human=Human, other_monitors=[]
     )
     stats = monitors[1].data
     x = pd.DataFrame.from_dict(stats).set_index('time')
+    # fig = x[['susceptible', 'exposed', 'infectious', 'removed']].iplot(asFigure=True, title="SEIR")
+    # fig.show()
+    #
+    # fig = x['R'].iplot(asFigure=True, title="R0")
+    # fig.show()
 
-    contacts = monitors[-1].data
+    x = pd.DataFrame.from_dict(stats).set_index('time')
+    tracker.contacts['all']
+    x = pd.DataFrame.from_dict(tracker.contacts['all'])
+    x = x[sorted(x.columns)]
+    x = x + x.transpose()
+    x /= x.sum(1)
+
+    x = pd.DataFrame.from_dict(tracker.contacts['human_infection'])
+    x = x[sorted(x.columns)]
+
+    x = tracker.contacts['env_infection']
     import pdb; pdb.set_trace()
-    x = pd.DataFrame.from_dict(contacts)
+    g = tracker.infection_graph
+    # nx.nx_pydot.write_dot(g,'DiGraph.dot')
+    # pos = nx.drawing.nx_agraph.graphviz_layout(g, prog='dot')
+    # nx.draw_networkx(g, pos, with_labels=True)
+    # plt.show()
 
-    fig = x.iplot(kind='heatmap')
-    fig.show()
-    import pdb; pdb.set_trace()
+    # fig = x.iplot(kind='heatmap', asFigure=True)
+    # fig.show()
 
+    # types = sorted(LOCATION_DISTRIBUTION.keys())
+    # ages = sorted(HUMAN_DISTRIBUTION.keys(), key = lambda x:x[0])
+    # for hour, v1 in tracker.transition_probability.items():
+    #     images = []
+    #     fig,ax =  plt.subplots(3,2, figsize=(18,12), sharex=True, sharey=False)
+    #     pos = {0:(0,0), 1:(0,1), 2:(1,0), 3:(1,1), 4:(2,0), 5:(2,1)}
+    #
+    #     for age_bin in range(len(ages)):
+    #         v2 = v1[age_bin]
+    #         x = pd.DataFrame.from_dict(v2, orient='index')
+    #         x = x.reindex(index=types, columns=types)
+    #         x = x.div(x.sum(1), axis=0)
+    #         g = sns.heatmap(x, ax=ax[pos[age_bin][0]][pos[age_bin][1]],
+    #             linewidth=0.5, linecolor='black', annot=True, vmin=0.0, vmax=1.0, cmap=sns.cm.rocket_r)
+    #         g.set_title(f"{ages[age_bin][0]} <= age < {ages[age_bin][1]}")
+    #
+    #     fig.suptitle(f"Hour {hour}", fontsize=16)
+    #     fig.savefig(f"images/hour_{hour}.png")
 
 @simu.command()
 def test():
@@ -197,23 +241,23 @@ def run_simu(n_people=None, init_percent_sick=0, store_capacity=30, misc_capacit
     #         surface_prob=[0.1, 0.1, 0.3, 0.2, 0.3]
     #     ) for i in range(n_misc)
     # ]
-    city = City(env, n_people, rng, city_x_range, city_y_range, start_time, init_percent_sick)
+    city = City(env, n_people, rng, city_x_range, city_y_range, start_time, init_percent_sick, Human)
 
-    humans = [
-        Human(
-            env=env,
-            name=i,
-            rng=rng,
-            age=_get_random_age_multinomial(rng),
-            infection_timestamp=start_time if i < n_people * init_percent_sick else None,
-            household=rng.choice(households),
-            workplace=rng.choice(workplaces),
-            rho=0.6,
-            gamma=0.21
-        )
-        for i in range(n_people)]
+    # humans = [
+    #     Human(
+    #         env=env,
+    #         name=i,
+    #         rng=rng,
+    #         age=_get_random_age_multinomial(rng),
+    #         infection_timestamp=start_time if i < n_people * init_percent_sick else None,
+    #         household=rng.choice(households),
+    #         workplace=rng.choice(workplaces),
+    #         rho=0.6,
+    #         gamma=0.21
+    #     )
+    #     for i in range(n_people)]
 
-    city = City(stores=stores, parks=parks, humans=humans, miscs=miscs)
+    # city = City(stores=stores, parks=parks, humans=humans, miscs=miscs)
     monitors = [EventMonitor(f=120), SEIRMonitor(f=1440)]
 
     # run the simulation
@@ -223,7 +267,7 @@ def run_simu(n_people=None, init_percent_sick=0, store_capacity=30, misc_capacit
     if other_monitors:
         monitors += other_monitors
 
-    for human in humans:
+    for human in city.humans:
         env.process(human.run(city=city))
 
     for m in monitors:

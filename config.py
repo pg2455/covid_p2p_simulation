@@ -3,14 +3,7 @@
 LOCATION_TECH = 'gps' # &location-tech
 
 # CITY PARAMETERS
-AGE_DISTRIBUTION = {
-    (0,20): 0.2,
-    (20,40):0.2,
-    (40,60):0.2,
-    (60,80):0.2,
-    (80, 100):0.2
-}
-
+MIN_AVG_HOUSE_AGE = 15
 # n - people per location
 LOCATION_DISTRIBUTION = {
     "store":{
@@ -81,7 +74,9 @@ HUMAN_DISTRIBUTION = {
         },
         "profession_profile":{
             "healthcare":0.0,
-            "others":1.0
+            "school":1.0,
+            "others":0.0,
+            "retired":0.0
         }
     },
     (15,20):{
@@ -92,7 +87,9 @@ HUMAN_DISTRIBUTION = {
         },
         "profession_profile":{
             "healthcare":0.0,
-            "others":1.0
+            "school":0.9,
+            "others":0.1,
+            "retired":0.0
         }
     },
     (20,40):{
@@ -103,7 +100,9 @@ HUMAN_DISTRIBUTION = {
         },
         "profession_profile": {
                 "healthcare":0.1,
-                "others":0.9
+                "school":0.1,
+                "others":0.8,
+                "retired":0.0
         },
 
     },
@@ -115,7 +114,9 @@ HUMAN_DISTRIBUTION = {
         },
         "profession_profile": {
                 "healthcare":0.1,
-                "others":0.9
+                "school":0.05,
+                "others":0.85,
+                "retired":0.0
         },
 
     },
@@ -126,8 +127,10 @@ HUMAN_DISTRIBUTION = {
             "senior_residency":0.7
         },
         "profession_profile": {
-                "healthcare":0.1,
-                "others":0.9
+                "healthcare":0.05,
+                "school":0.0,
+                "others":0.9,
+                "retired":0.05
         },
 
     },
@@ -138,8 +141,10 @@ HUMAN_DISTRIBUTION = {
             "senior_residency":0.9
         },
         "profession_profile":{
-                "healthcare":0.1,
-                "others":0.9
+                "healthcare":0.0,
+                "school":0.0,
+                "others":0.0,
+                "retired":1.0
         },
 
     }
