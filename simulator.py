@@ -280,10 +280,12 @@ class Human(object):
 
     def assert_state_changes(self):
         next_state = {0:1, 1:2, 2:0}
-        assert sum(self.state) == 1, f"invalid compartment for human:{self.name}"
-        if self.last_state != self.state:
-            assert next_state[self.last_state.index(1)] == self.state.index(1), f"invalid compartment transition for human:{self.name}"
-            self.last_state = self.state
+        # self.state is a fairly expensive to evaluate property, so we call it once.
+        state = self.state
+        assert sum(state) == 1, f"invalid compartment for human:{self.name}"
+        if self.last_state != state:
+            assert next_state[self.last_state.index(1)] == state.index(1), f"invalid compartment transition for human:{self.name}"
+            self.last_state = state
 
     def run(self, city):
         """
@@ -318,7 +320,8 @@ class Human(object):
 
                 Event.log_recovery(self, self.env.timestamp, dead)
 
-            self.assert_state_changes()
+            # With this assert: 91 seconds. Without: 81 seconds. This adds up.
+            # self.assert_state_changes()
 
             # Mobility
 
