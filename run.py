@@ -1,11 +1,14 @@
 from monitors import EventMonitor, TimeMonitor, SEIRMonitor
 from base import *
-from utils import _draw_random_discreet_gaussian, _get_random_age, _get_random_area
+from utils import _draw_random_discreet_gaussian, _get_random_age, _get_random_area, PatchedRNG
 import datetime
 import click
 from config import TICK_MINUTE
 import numpy as np
 import math
+
+# Uncomment this if your numpy.RandomState throws an error:
+# np.random.RandomState = PatchedRNG
 
 
 @click.group()
@@ -39,7 +42,10 @@ def sim(n_stores=None, n_people=None, n_parks=None, n_misc=None,
         print_progress=print_progress,
         seed=seed
     )
-    monitors[0].dump(outfile)
+    if outfile == 'none':
+        pass
+    else:
+        monitors[0].dump(outfile)
     return monitors[0].data
 
 
