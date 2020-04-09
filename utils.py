@@ -1,8 +1,43 @@
 import numpy as np
-from scipy.stats import norm, truncnorm
+from scipy.stats import norm, truncnorm, gamma
 from functools import lru_cache
 import datetime
 import math
+from config import *
+
+
+def _sample_viral_load_gamma(
+    rng, shape_mean=4.5, shape_std=0.15, scale_mean=1.0, scale_std=0.15
+):
+    """ This function samples the shape and scale of a gamma distribution, then returns it"""
+    shape = rng.normal(shape_mean, shape_std)
+    scale = rng.normal(scale_mean, scale_std)
+    return gamma(shape, scale=scale)
+
+
+def _sample_viral_load_piecewise(rng):
+    """ This function samples a piece-wise linear viral load model which increases, plateaus, and drops """
+    # https://stackoverflow.com/questions/18441779/how-to-specify-upper-and-lower-limits-when-using-numpy-random-normal
+    plateau_start = truncnorm(
+        (PLATEAU_START_CLIP_LOW - PLATEAU_START_MEAN) / PLATEAU_START_STD,
+        (PLATEAU_START_CLIP_HIGH - PLATEAU_START_MEAN) / PLATEAU_START_STD,
+        loc=PLATEAU_START_MEAN,
+        scale=PLATEAU_START_STD,
+    ).rvs(1, random_state=rng)
+    plateau_end = plateau_start + truncnorm(
+        (PLATEAU_DURATION_CLIP_LOW - PLATEAU_DURATION_MEAN) / PLEATEAU_DURATION_STD,
+        (PLATEAU_DURATION_CLIP_HIGH - PLATEAU_DURATION_MEAN) / PLEATEAU_DURATION_STD,
+        loc=PLATEAU_DURATION_MEAN,
+        scale=PLEATEAU_DURATION_STD,
+    ).rvs(1, random_state=rng)
+    recovered = plateau_end + truncnorm(
+        (plateau_end - RECOVERY_MEAN) / RECOVERY_STD,
+        (RECOVERY_CLIP_HIGH - RECOVERY_MEAN) / RECOVERY_STD,
+        loc=RECOVERY_MEAN,
+        scale=RECOVERY_STD,
+    ).rvs(1, random_state=rng)
+    plateau_height = rng.uniform(MIN_VIRAL_LOAD, MAX_VIRAL_LOAD)
+    return plateau_height, plateau_start, plateau_end, recovered
 
 
 def _normalize_scores(scores):
@@ -19,6 +54,151 @@ def _get_random_age(rng):
     else:
         age = round(float(draw))
     return age
+
+
+# &sex
+def _get_random_sex(rng):
+    p = rng.rand()
+    if p < 0.4:
+        return "female"
+    elif p < 0.8:
+        return "male"
+    else:
+        return "other"
+
+
+# &preexisting-conditions
+def _get_preexisting_conditions(age, sex, rng):
+    # if rng.rand() < 0.6 + age/200:
+    # 	conditions = None
+    # else:
+    conditions = []
+
+    # &immuno-suppressed (3.6% on average)
+    if age < 40:
+        if rng.rand() < 0.005:
+            conditions.append("immuno-suppressed")
+    elif age < 65:
+        if rng.rand() < 0.036:
+            conditions.append("immuno-suppressed")
+    elif age < 85:
+        if rng.rand() < 0.045:
+            conditions.append("immuno-suppressed")
+    else:
+        if rng.rand() < 0.20:
+            conditions.append("immuno-suppressed")
+
+    # &diabetes
+    if age < 18:
+        if rng.rand() < 0.005:
+            conditions.append("diabetes")
+    elif age < 35:
+        if rng.rand() < 0.009:
+            conditions.append("diabetes")
+    elif age < 50:
+        if rng.rand() < 0.039:
+            conditions.append("diabetes")
+    elif age < 75:
+        if rng.rand() < 0.13:
+            conditions.append("diabetes")
+    else:
+        if rng.rand() < 0.179:
+            conditions.append("diabetes")
+
+    # &heart disease
+    if age < 20:
+        if rng.rand() < 0.001:
+            conditions.append("heart_disease")
+    elif age < 35:
+        if rng.rand() < 0.005:
+            conditions.append("heart_disease")
+    elif age < 50:
+        if sex.lower().startswith("f"):
+            if rng.rand() < 0.013:
+                conditions.append("heart_disease")
+        elif sex.lower().startswith("m"):
+            if rng.rand() < 0.021:
+                conditions.append("heart_disease")
+        else:
+            if rng.rand() < 0.017:
+                conditions.append("heart_disease")
+    elif age < 75:
+        if sex.lower().startswith("f"):
+            if rng.rand() < 0.13:
+                conditions.append("heart_disease")
+        elif sex.lower().startswith("m"):
+            if rng.rand() < 0.178:
+                conditions.append("heart_disease")
+        else:
+            if rng.rand() < 0.15:
+                conditions.append("heart_disease")
+    else:
+        if sex.lower().startswith("f"):
+            if rng.rand() < 0.311:
+                conditions.append("heart_disease")
+        elif sex.lower().startswith("m"):
+            if rng.rand() < 0.44:
+                conditions.append("heart_disease")
+        else:
+            if rng.rand() < 0.375:
+                conditions.append("heart_disease")
+
+    # &COPD
+    if age < 35:
+        pass
+    elif age < 50:
+        if rng.rand() < 0.015:
+            conditions.append("COPD")
+    elif age < 65:
+        if rng.rand() < 0.037:
+            conditions.append("COPD")
+    else:
+        if rng.rand() < 0.075:
+            conditions.append("COPD")
+
+    # &asthma
+    if age < 10:
+        if sex.lower().startswith("f"):
+            if rng.rand() < 0.07:
+                conditions.append("asthma")
+        elif sex.lower().startswith("m"):
+            if rng.rand() < 0.12:
+                conditions.append("asthma")
+        else:
+            if rng.rand() < 0.09:
+                conditions.append("asthma")
+    elif age < 25:
+        if sex.lower().startswith("f"):
+            if rng.rand() < 0.15:
+                conditions.append("asthma")
+        elif sex.lower().startswith("m"):
+            if rng.rand() < 0.19:
+                conditions.append("asthma")
+        else:
+            if rng.rand() < 0.17:
+                conditions.append("asthma")
+    elif age < 75:
+        if sex.lower().startswith("f"):
+            if rng.rand() < 0.11:
+                conditions.append("asthma")
+        elif sex.lower().startswith("m"):
+            if rng.rand() < 0.06:
+                conditions.append("asthma")
+        else:
+            if rng.rand() < 0.08:
+                conditions.append("asthma")
+    else:
+        if sex.lower().startswith("f"):
+            if rng.rand() < 0.12:
+                conditions.append("asthma")
+        elif sex.lower().startswith("m"):
+            if rng.rand() < 0.08:
+                conditions.append("asthma")
+        else:
+            if rng.rand() < 0.1:
+                conditions.append("asthma")
+
+    return conditions
 
 
 def _get_random_area(location_type, num, total_area, rng):
@@ -66,5 +246,3 @@ def _json_serialize(o):
 
 def compute_distance(loc1, loc2):
     return np.sqrt((loc1.lat - loc2.lat) ** 2 + (loc1.lon - loc2.lon) ** 2)
-
-
