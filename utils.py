@@ -205,7 +205,10 @@ def _json_serialize(o):
 
 def compute_distance(loc1, loc2):
     return np.sqrt((loc1.lat - loc2.lat) ** 2 + (loc1.lon - loc2.lon) ** 2)
-    
+
+""" Function to create houses with capacity having the distribution: "1person/household" = 28%, 
+"2person/household" = 35% , "3person/household" = 15% , "4person/household" = 14% , "5 or more 
+person/household" = 8%"""   
 def _get_random_household_capacity(rng):
     draw = rng.choice(np.arange(1, 6), p=[0.28, 0.35, 0.15, 0.14, 0.08])
     if draw == 5:

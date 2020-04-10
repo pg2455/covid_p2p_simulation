@@ -3,7 +3,7 @@ from base import *
 from utils import _draw_random_discreet_gaussian, _get_random_age, _get_random_area, _get_random_household_capacity
 import datetime
 import click
-from config import TICK_MINUTE
+from config import TICK_MINUTE, AVERAGE_HOUSEHOLD_SIZE
 import numpy as np
 import math
 
@@ -171,27 +171,38 @@ def run_simu(n_stores=None, n_people=None, n_parks=None, n_misc=None,
         ) for i in range(n_misc)
     ]
 
+
+    """Dictionary to store curr_occupancy, capacity and curr_mean_age of a household"""
     new_dict = {}
     for i in households:
-        new_dict[i.name] = 0, i.capacity
+        new_dict[i.name] = 0, i.capacity, 0
 
-    def _assign_household(rng):
+    list_households = ['garbage']
+
+    """Function following the realistic people to house ratio described in utils.py and
+    to ensure not all members of a household are below the age of 15 years"""
+    def _assign_household_age(rng):
         household = rng.choice(households)
-        occ, cap = new_dict[household.name]
+
+        age = _get_random_age(rng)
+        occ, cap, avg_age = new_dict[household.name]
+        if ((occ >= math.floor(cap / 2)) and (avg_age <= 15)):
+            age = round(30 + rng.normal(0, 4))
         if (occ < cap):
-            new_dict[household.name] = occ + 1, cap
+            list_households[0] = household
+            new_dict[household.name] = occ + 1, cap, ((avg_age + age) / 2)
         else:
             _assign_household(rng)
-        return household
+        return age
 
     humans = [
         Human(
             env=env,
             name=i,
             rng=rng,
-            age=_get_random_age(rng),
+            age=_assign_household_age(rng),
             infection_timestamp=start_time if i < n_people * init_percent_sick else None,
-            household=_assign_household(rng),
+            household=list_households[0]),
             workplace=rng.choice(workplaces)
         )
         for i in range(n_people)]
