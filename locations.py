@@ -5,6 +5,8 @@ from simpy.core import Infinity
 
 from base import Env
 from config import TICK_MINUTE
+import units
+
 
 LocationIO = namedtuple(
     "LocationIO",
