@@ -46,16 +46,24 @@ class Human(object):
         yield self.env.timeout(duration / TICK_MINUTE)
         location.exit(self)
 
+    def expose(self, now):
+        # TODO Exposed --> Infected transition
+        return self.infect(now)
+
     def infect(self, now):
-        # We can read "now" from self.env,
-        # but explicit is better than implicit.
         assert now is not None
+        if self.infected:
+            # Nothing to do here
+            return self
         self.infected_at = now
         self.infected = True
         return self
 
     def disinfect(self, now):
         assert now is not None
+        if not self.infected:
+            # Nothing to do here
+            return self
         self.disinfected_at = now
         self.infected = False
         return self
@@ -74,10 +82,9 @@ class Location(object):
         self.verbose = verbose
         self.now = self.env.timestamp
         # Infection book keeping
-        self.infected_human_count = 0
         self.last_contaminated = None
         # Entry and exit handling
-        self.humans = set()
+        self.humans = dict()
         self.entry_queue = []
         self.exit_queue = []
         self.process = self.env.process(self.run())
@@ -105,11 +112,22 @@ class Location(object):
                 # Check who wants to enter
                 while self.entry_queue:
                     self.register_human_entry(self.entry_queue.pop())
+                # Who infects whom
+                self.update_infections()
                 # ... and who wants to exit
                 while self.exit_queue:
                     self.register_human_exit(self.exit_queue.pop())
-                # Back to slumber
+                # Back to slumber. We set self.now to None as a tripwire.
                 self.now = None
+
+    def update_infections(self):
+        # FIXME This is a very naive model, but it'll be enough for now.
+        # Infect everyone if anyone is infected in the location.
+        if self.infected_human_count > 0:
+            for human in self.humans:
+                # If the human is already infected, this will not update
+                # the infection time-stamp.
+                human.expose(self.now)
 
     def register_human_entry(self, human: Human):
         if self.verbose:
@@ -120,15 +138,12 @@ class Location(object):
             )
         # Set location and timestamps of human
         human.location_history.append(self)
-        human.location_entry_timestamp_history.append(self)
-        # Check if human is infected, in which case infect other humans
-        if human.infected:
-            self.register_infected_human()
-        # FIXME Need a global mechanism in place that infects all humans.
-        if self.infected_human_count > 0:
-            human.infect(self.now)
+        human.location_entry_timestamp_history.append(self.now)
         # Add human
-        self.humans.add(human)
+        self.humans[human] = {
+            "was_infected_on_arrival": human.infected,
+            "arrived_at": self.now,
+        }
         # Record the human entering
         self.events.append(
             LocationIO(
@@ -141,9 +156,11 @@ class Location(object):
             )
         )
 
+    @property
+    def infected_human_count(self):
+        return sum([human.infected for human in self.humans])
+
     def register_human_exit(self, human: Human):
-        if human.infected:
-            self.deregister_infected_human(human)
         # Record the human exiting
         self.events.append(
             LocationIO(
@@ -155,30 +172,13 @@ class Location(object):
                 num_infected_humans_at_location=self.infected_human_count,
             )
         )
-        self.humans.remove(human)
+        del self.humans[human]
         if self.verbose:
             print(
                 f"Human {human.name} ({'S' if not human.infected else 'I'}) "
                 f"exited Location {self.name} at time {self.now} contaminated "
                 f"with {self.infected_human_count} infected humans."
             )
-
-    def register_infected_human(self):
-        # Contaminate the location, infect the human and increment infected human counter
-        self.last_contaminated = self.now
-        self.infected_human_count += 1
-        # If an infected human is registered, infect everyone else in the location
-        for human in self.humans:
-            # FIXME this should happen with some probability
-            if not human.infected:
-                human.infect(now=self.now)
-                self.infected_human_count += 1
-        # Done
-        return self
-
-    def deregister_infected_human(self, human):
-        self.infected_human_count -= 1
-        return self
 
     def __hash__(self):
         return hash(self.name)
@@ -192,13 +192,19 @@ if __name__ == "__main__":
     L = Location(env, "L", verbose=True)
 
     A = Human(env, "A")
-    B = Human(env, "B").infect(L.now)
-    C = Human(env, "C")
+    B = Human(env, "B")
+    C = Human(env, "C").infect(L.now)
     D = Human(env, "D")
+    E = Human(env, "E")
+    F = Human(env, "F")
+    G = Human(env, "G")
 
-    env.process(A.at(L, duration=10))
-    env.process(B.at(L, duration=5, wait=2))
-    env.process(C.at(L, duration=5, wait=3))
-    env.process(D.at(L, duration=10, wait=1))
+    env.process(A.at(L, duration=10, wait=0))
+    env.process(B.at(L, duration=1, wait=2))
+    env.process(C.at(L, duration=4, wait=3))
+    env.process(D.at(L, duration=4, wait=4))
+    env.process(E.at(L, duration=5, wait=9))
+    env.process(F.at(L, duration=5, wait=15))
+    env.process(G.at(L, duration=3, wait=16))
 
     env.run(100)
