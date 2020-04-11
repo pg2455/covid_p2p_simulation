@@ -80,8 +80,9 @@ class Tracker(object):
         fig.show()
 
     def track_trip(self, from_location, to_location, age, hour):
+        bin = None
         for i, (l,u) in enumerate(self.age_bins):
             if l <= age < u:
                 bin = i
-
+        if bin is None: import pdb; pdb.set_trace()
         self.transition_probability[hour][bin][from_location][to_location] += 1

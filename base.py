@@ -9,6 +9,7 @@ import copy
 from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION, MIN_AVG_HOUSE_AGE
 from utils import compute_distance, _get_random_area
 from collections import defaultdict
+from orderedset import OrderedSet
 
 from track import Tracker
 
@@ -144,7 +145,8 @@ class City(object):
                 else:
                     workplace = res
 
-
+                if len(res.humans) > 5:
+                    import pdb; pdb.set_trace()
                 self.humans.append(Human(
                         env=self.env,
                         rng=self.rng,
@@ -158,7 +160,6 @@ class City(object):
                         infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None
                         )
                     )
-
 
         area = _get_random_area(n_houses, LOCATION_DISTRIBUTION['household']['area'] * self.total_area, self.rng)
         for i,h in enumerate(self.households):
@@ -185,7 +186,7 @@ class Location(simpy.Resource):
             capacity = simpy.core.Infinity
 
         super().__init__(env, capacity)
-        self.humans = set()
+        self.humans = OrderedSet() #OrderedSet instead of set for determinism when iterating
         self.name = name
         self.rng = rng
         self.lat = lat
@@ -246,7 +247,7 @@ class Event:
     @staticmethod
     def log_encounter(human1, human2, location, duration, distance, time):
         h_obs_keys = ['obs_lat', 'obs_lon', 'age', 'reported_symptoms', 'test_results', 'has_app']
-        h_unobs_keys = ['carefullness', 'infectiousness', 'symptoms']
+        h_unobs_keys = ['carefullness', 'viral_load', 'infectiousness', 'symptoms', 'is_exposed', 'is_infectious']
         loc_obs_keys = ['location_type', 'lat', 'lon']
         loc_unobs_keys = ['contamination_probability', 'social_contact_factor']
 
@@ -257,6 +258,8 @@ class Event:
 
             u = {key:getattr(human, key) for key in h_unobs_keys}
             u['is_infected'] = human.is_exposed or human.is_infectious
+            u['human_id'] = human.name
+            u['location_is_residence'] = human.household == location
             unobs.append(u)
 
         loc_obs = {key:getattr(location, key) for key in loc_obs_keys}
@@ -300,7 +303,7 @@ class Event:
         )
 
     @staticmethod
-    def log_symptom_start(human, time, covid=True):
+    def log_symptom_start(human, covid, time):
         human.events.append(
             {
                 'human_id': human.name,

@@ -5,6 +5,7 @@ import datetime
 import click
 from config import TICK_MINUTE, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION
 import numpy as np
+import math
 
 
 @click.group()
@@ -77,7 +78,6 @@ def tune():
     import matplotlib.pyplot as plt
     import networkx as nx
     import seaborn as sns
-    from PIL import Image
     import io
     import glob
 
@@ -91,15 +91,14 @@ def tune():
         print_progress=True, seed=0, Human=Human, other_monitors=[]
     )
     stats = monitors[1].data
-    x = pd.DataFrame.from_dict(stats).set_index('time')
+    # x = pd.DataFrame.from_dict(stats).set_index('time')
     # fig = x[['susceptible', 'exposed', 'infectious', 'removed']].iplot(asFigure=True, title="SEIR")
     # fig.show()
-    #
+
     # fig = x['R'].iplot(asFigure=True, title="R0")
     # fig.show()
 
     x = pd.DataFrame.from_dict(stats).set_index('time')
-    tracker.contacts['all']
     x = pd.DataFrame.from_dict(tracker.contacts['all'])
     x = x[sorted(x.columns)]
     x = x + x.transpose()
@@ -107,17 +106,16 @@ def tune():
 
     x = pd.DataFrame.from_dict(tracker.contacts['human_infection'])
     x = x[sorted(x.columns)]
-
+    # fig = x.iplot(kind='heatmap', asFigure=True)
+    # fig.show()
+    #
     x = tracker.contacts['env_infection']
     import pdb; pdb.set_trace()
     g = tracker.infection_graph
-    # nx.nx_pydot.write_dot(g,'DiGraph.dot')
-    # pos = nx.drawing.nx_agraph.graphviz_layout(g, prog='dot')
-    # nx.draw_networkx(g, pos, with_labels=True)
-    # plt.show()
-
-    # fig = x.iplot(kind='heatmap', asFigure=True)
-    # fig.show()
+    nx.nx_pydot.write_dot(g,'DiGraph.dot')
+    pos = nx.drawing.nx_agraph.graphviz_layout(g, prog='dot')
+    nx.draw_networkx(g, pos, with_labels=True)
+    plt.show()
 
     # types = sorted(LOCATION_DISTRIBUTION.keys())
     # ages = sorted(HUMAN_DISTRIBUTION.keys(), key = lambda x:x[0])
