@@ -1,12 +1,10 @@
-from collections import namedtuple, deque
+from collections import namedtuple
 
 from simpy import Interrupt
 from simpy.core import Infinity
 
 from base import Env
-from config import TICK_MINUTE
-import units
-
+from locations import location_types as lty
 
 LocationIO = namedtuple(
     "LocationIO",
@@ -21,77 +19,24 @@ LocationIO = namedtuple(
 )
 
 
-class ProtoHuman(object):
-    def __init__(self, env: Env, name: str, locations: dict):
-        self.env = env
-        self.name = name
-        # Infections
-        self.infected = False
-        self.infected_at = None
-        self.disinfected_at = None
-        # Locations
-        self.location_history = deque(maxlen=2)
-        self.location_entry_timestamp_history = deque(maxlen=2)
-        # Locations
-        self.household = locations['household']
-        self.workplace = locations['workplace']
-        # Behaviour
-        self.working_hours = [9, 17]
-
-    @property
-    def location(self):
-        return self.location_history[-1]
-
-    @property
-    def previous_location(self):
-        return self.location_history[-2]
-
-    def run(self):
-        while True:
-            now = self.env.timestamp
-            # TODO
-        pass
-
-    def at(self, location: "Location", duration, wait=None):
-        if wait is not None:
-            yield self.env.timeout(wait / TICK_MINUTE)
-        location.enter(self)
-        yield self.env.timeout(duration / TICK_MINUTE)
-        location.exit(self)
-
-    def expose(self, now):
-        # TODO Exposed --> Infected transition
-        return self.infect(now)
-
-    def infect(self, now=None):
-        if self.infected:
-            # Nothing to do here
-            return self
-        now = now or self.env.timestamp
-        self.infected_at = now
-        self.infected = True
-        return self
-
-    def disinfect(self, now):
-        if not self.infected:
-            # Nothing to do here
-            return self
-        now = now or self.env.timestamp
-        self.disinfected_at = now
-        self.infected = False
-        return self
-
-    def __hash__(self):
-        return hash(self.name)
+class LocationFullError(Exception):
+    pass
 
 
 class Location(object):
     """Locations are now processes."""
 
-    def __init__(self, env: Env, name: str, verbose=False):
+    def __init__(
+        self,
+        env: Env,
+        name: str,
+        location_type: lty.LocationType = lty.VOID,
+        verbose=False,
+    ):
         # Meta data
         self.env = env
         self.name = name
+        self.location_type = location_type
         self.verbose = verbose
         self.now = self.env.timestamp
         # Infection book keeping
@@ -105,6 +50,8 @@ class Location(object):
         self.events = []
 
     def enter(self, human):
+        if len(self.humans) > self.location_type.capacity:
+            raise LocationFullError
         self.entry_queue.append(human)
         self.process.interrupt()
 
@@ -198,6 +145,7 @@ class Location(object):
 
 
 if __name__ == "__main__":
+    from humans.human import ProtoHuman
     import datetime
 
     env = Env(datetime.datetime(2020, 2, 28, 0, 0))
