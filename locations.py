@@ -21,8 +21,8 @@ LocationIO = namedtuple(
 )
 
 
-class Human(object):
-    def __init__(self, env, name):
+class ProtoHuman(object):
+    def __init__(self, env: Env, name: str, locations: dict):
         self.env = env
         self.name = name
         # Infections
@@ -32,6 +32,11 @@ class Human(object):
         # Locations
         self.location_history = deque(maxlen=2)
         self.location_entry_timestamp_history = deque(maxlen=2)
+        # Locations
+        self.household = locations['household']
+        self.workplace = locations['workplace']
+        # Behaviour
+        self.working_hours = [9, 17]
 
     @property
     def location(self):
@@ -40,6 +45,12 @@ class Human(object):
     @property
     def previous_location(self):
         return self.location_history[-2]
+
+    def run(self):
+        while True:
+            now = self.env.timestamp
+            # TODO
+        pass
 
     def at(self, location: "Location", duration, wait=None):
         if wait is not None:
@@ -52,20 +63,20 @@ class Human(object):
         # TODO Exposed --> Infected transition
         return self.infect(now)
 
-    def infect(self, now):
-        assert now is not None
+    def infect(self, now=None):
         if self.infected:
             # Nothing to do here
             return self
+        now = now or self.env.timestamp
         self.infected_at = now
         self.infected = True
         return self
 
     def disinfect(self, now):
-        assert now is not None
         if not self.infected:
             # Nothing to do here
             return self
+        now = now or self.env.timestamp
         self.disinfected_at = now
         self.infected = False
         return self
@@ -131,7 +142,7 @@ class Location(object):
                 # the infection time-stamp.
                 human.expose(self.now)
 
-    def register_human_entry(self, human: Human):
+    def register_human_entry(self, human: "ProtoHuman"):
         if self.verbose:
             print(
                 f"Human {human.name} ({'S' if not human.infected else 'I'}) "
@@ -162,7 +173,7 @@ class Location(object):
     def infected_human_count(self):
         return sum([human.infected for human in self.humans])
 
-    def register_human_exit(self, human: Human):
+    def register_human_exit(self, human: "ProtoHuman"):
         # Record the human exiting
         self.events.append(
             LocationIO(
@@ -193,13 +204,13 @@ if __name__ == "__main__":
 
     L = Location(env, "L", verbose=True)
 
-    A = Human(env, "A")
-    B = Human(env, "B")
-    C = Human(env, "C").infect(L.now)
-    D = Human(env, "D")
-    E = Human(env, "E")
-    F = Human(env, "F")
-    G = Human(env, "G")
+    A = ProtoHuman(env, "A")
+    B = ProtoHuman(env, "B")
+    C = ProtoHuman(env, "C").infect(L.now)
+    D = ProtoHuman(env, "D")
+    E = ProtoHuman(env, "E")
+    F = ProtoHuman(env, "F")
+    G = ProtoHuman(env, "G")
 
     env.process(A.at(L, duration=10, wait=0))
     env.process(B.at(L, duration=1, wait=2))
