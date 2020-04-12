@@ -400,8 +400,7 @@ class Human(object):
             if self.is_infectious and self.env.timestamp - self.infection_timestamp >= datetime.timedelta(days=self.recovery_days):
                 city.tracker.track_recovery(self.recovery_days - self.incubation_days + INFECTIOUSNESS_ONSET_DAYS)
                 if (1 - self.never_recovers): # re-infection assumed negligble
-                    self.recovered_timestamp = datetime.datetime.max
-
+                    self.recovered_timestamp.append(datetime.datetime.max)
                     dead = True
                 else:
                     self.recovered_timestamp.append(self.env.timestamp)
