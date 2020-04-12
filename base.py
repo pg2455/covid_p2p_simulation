@@ -6,7 +6,7 @@ import numpy as np
 
 
 import copy
-from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION, MIN_AVG_HOUSE_AGE
+from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION, MIN_AVG_HOUSE_AGE, HOUSE_SIZE_PREFERENCE
 from utils import compute_distance, _get_random_area
 from collections import defaultdict
 from orderedset import OrderedSet
@@ -43,7 +43,6 @@ class Env(simpy.Environment):
         return self.timestamp.isoformat()
 
 
-
 class City(object):
 
     def __init__(self, env, n_people, rng, x_range, y_range, start_time, init_percent_sick, Human):
@@ -58,17 +57,21 @@ class City(object):
         self.initialize_locations()
 
         self.humans = []
-        self.households = []
+        self.households = OrderedSet()
         self.initialize_humans(Human)
         # self.stores = stores
         # self.parks = parks
         # self.humans = humans
         # self.miscs = miscs
         self._compute_preferences()
-        self.tracker = Tracker(self)
+        self.tracker = Tracker(env, self)
 
     def create_location(self, specs, type, name, area=None):
-        return   Location(
+        _cls = Location
+        if type in ['household', 'senior_residency']:
+            _cls = Household
+
+        return   _cls(
                         env=self.env,
                         rng=self.rng,
                         name=f"{type}:{name}",
@@ -91,6 +94,14 @@ class City(object):
             setattr(self, f"{location}s", locs)
 
     def initialize_humans(self, Human):
+        # allocate humans to houses such that (unsolved)
+        # 1. average number of residents in a house is (approx.) 2.6
+        # 2. not all residents are below 15 years of age
+        # 3. age occupancy distribution follows HUMAN_DSITRIBUTION.residence_preference.house_size
+
+        # current implementation is an approximate heuristic
+
+        # make humans
         count_humans = 0
         house_allocations = {2:[], 3:[], 4:[], 5:[]}
         n_houses = 0
@@ -99,11 +110,6 @@ class City(object):
             ages = self.rng.randint(*age_bin, size=n)
 
             senior_residency_preference = specs['residence_preference']['senior_residency']
-            house_preference = 1 - senior_residency_preference
-            house_size_pref = np.array(specs['residence_preference']['house_size'])
-            house_size_pref /= house_size_pref.sum()
-            house_preference = house_preference * house_size_pref
-            residence = self.rng.choice(range(6), p = [senior_residency_preference] + house_preference.tolist(), size=n)
 
             professions = ['healthcare', 'school', 'others', 'retired']
             p = [specs['profession_profile'][x] for x in professions]
@@ -114,26 +120,9 @@ class City(object):
                 age = ages[i]
 
                 # residence
-                res_pref = residence[i]
-                if res_pref == 0:
+                res = None
+                if self.rng.random() < senior_residency_preference:
                     res = self.rng.choice(self.senior_residencys)
-                else:
-                    res = None
-                    if res_pref != 1:
-                        for x in house_allocations[res_pref]:
-                            if x[0] > 0 and age >= x[1]:
-                                res = x[2]
-                                break
-
-                    if res is None:
-                        res = self.create_location(LOCATION_DISTRIBUTION['household'], 'household', len(self.households))
-                        n_houses += 1
-                        self.households.append(res)
-
-                    if res_pref != 1:
-                        min_age = MIN_AVG_HOUSE_AGE * res_pref - sum([h.age for h in res.humans])
-                        house_allocations[res_pref].append((res_pref - len(res.humans), min_age, res))
-                        house_allocations[res_pref] = sorted(house_allocations[res_pref], key = lambda x: -x[0]) # fill the biggest spot first
 
                 # workplace
                 if profession[i] == "healthcare":
@@ -145,8 +134,6 @@ class City(object):
                 else:
                     workplace = res
 
-                if len(res.humans) > 5:
-                    import pdb; pdb.set_trace()
                 self.humans.append(Human(
                         env=self.env,
                         rng=self.rng,
@@ -161,9 +148,50 @@ class City(object):
                         )
                     )
 
-        area = _get_random_area(n_houses, LOCATION_DISTRIBUTION['household']['area'] * self.total_area, self.rng)
-        for i,h in enumerate(self.households):
-            h.area = area[i]
+        # assign houses
+        # stores tuples - (location, current number of residents, maximum number of residents allowed)
+        remaining_houses = []
+        for human in self.humans:
+            if human.household is not None:
+                continue
+            if len(remaining_houses) == 0:
+                cap = self.rng.choice(range(1,6), p=HOUSE_SIZE_PREFERENCE, size=1)
+                x = self.create_location(LOCATION_DISTRIBUTION['household'], 'household', len(self.households))
+
+                remaining_houses.append((x, cap))
+
+            # get_best_match
+            res = None
+            for  c, (house, n_vacancy) in enumerate(remaining_houses):
+                new_avg_age = (human.age + sum(x.age for x in house.residents))/(len(house.residents) + 1)
+                if new_avg_age > MIN_AVG_HOUSE_AGE:
+                    res = house
+                    n_vacancy -= 1
+                    if n_vacancy == 0:
+                        remaining_houses = remaining_houses[:c] + remaining_houses[c+1:]
+                    break
+
+            if res is None:
+                for i, (l,u) in enumerate(HUMAN_DISTRIBUTION.keys()):
+                    if l <= human.age < u:
+                        bin = (l,u)
+                        break
+
+                house_size_preference = HUMAN_DISTRIBUTION[(l,u)]['residence_preference']['house_size']
+                cap = self.rng.choice(range(1,6), p=house_size_preference, size=1)
+                res = self.create_location(LOCATION_DISTRIBUTION['household'], 'household', len(self.households))
+                if cap - 1 > 0:
+                    remaining_houses.append((res, cap-1))
+
+            # FIXME: there is circular reference
+            res.residents.append(human)
+            human.assign_household(res)
+            self.households.add(res)
+
+        # assign area to house
+        area = _get_random_area(len(self.households), LOCATION_DISTRIBUTION['household']['area'] * self.total_area, self.rng)
+        for i,house in enumerate(self.households):
+            house.area = area[i]
 
 
     @property
@@ -231,6 +259,13 @@ class Location(simpy.Resource):
 
     def __hash__(self):
         return hash(self.name)
+
+
+class Household(Location):
+    def __init__(self, **kwargs):
+        super(Household, self).__init__(**kwargs)
+        self.residents = []
+
 
 
 class Event:

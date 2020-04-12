@@ -44,9 +44,8 @@ class Human(object):
         self.sex = _get_random_sex(self.rng)
         self.preexisting_conditions = _get_preexisting_conditions(self.age, self.sex, self.rng)
 
-        self.household = household
+        self.assign_household(household)
         self.workplace = workplace
-        self.location = household
         self.rho = rho
         self.gamma = gamma
 
@@ -95,6 +94,7 @@ class Human(object):
         self.has_logged_test = False
         self.n_infectious_contacts = 0
         self.last_state = self.state
+        self.symptom_start_time = None
 
         # habits
         self.avg_shopping_time = _draw_random_discreet_gaussian(AVG_SHOP_TIME_MINUTES, SCALE_SHOP_TIME_MINUTES, self.rng)
@@ -137,18 +137,14 @@ class Human(object):
 
         self.work_start_hour = self.rng.choice(range(7, 12), 3)
 
+    def assign_household(self, location):
+        self.household = location
+        self.location = location
+        if self.profession == "retired":
+            self.workplace = location
+
     def __repr__(self):
         return f"H:{self.name}, SEIR:{int(self.is_susceptible)}{int(self.is_exposed)}{int(self.is_infectious)}{int(self.is_removed)}"
-
-    def to_sick_to_move(self):
-        # Assume 2 weeks incubation time ; in 10% of cases person becomes to sick
-        # to go shopping after 2 weeks for at least 10 days and in 1% of the cases
-        # never goes shopping again.
-        time_since_sick_delta = (env.timestamp - self.infection_timestamp).days
-        in_peak_illness_time = (
-                time_since_sick >= self.incubation_days and
-                time_since_sick <= (self.incubation_days + NUM_DAYS_SICK))
-        return (in_peak_illness_time or self.never_recovers) and self.really_sick
 
     @property
     def is_susceptible(self):
@@ -270,6 +266,8 @@ class Human(object):
         while True:
 
             if self.is_infectious and self.has_logged_symptoms is False:
+                self.symptom_start_time = self.env.timestamp
+                city.tracker.track_generation_times(self.name) # it doesn't count environmental infection or primary case or asymptomatic/presymptomatic infections; refer the definition
                 Event.log_symptom_start(self, True, self.env.timestamp)
                 self.has_logged_symptoms = True
 
@@ -280,6 +278,7 @@ class Human(object):
                 assert self.has_logged_symptoms is True # FIXME: assumption might not hold
 
             if self.is_infectious and self.env.timestamp - self.infection_timestamp >= datetime.timedelta(days=self.recovery_days):
+                city.tracker.track_recovery(self.recovery_days - self.incubation_days + INFECTIOUSNESS_ONSET_DAYS)
                 if self.never_recovers or True: # re-infection assumed negligble
                     self.recovered_timestamp = datetime.datetime.max
                     dead = True

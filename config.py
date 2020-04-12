@@ -65,6 +65,7 @@ LOCATION_DISTRIBUTION = {
 }
 
 # house_size: 1 2 3 4 5
+HOUSE_SIZE_PREFERENCE = [0.2, 0.2, 0.35, 0.15, 0.1]
 HUMAN_DISTRIBUTION = {
     (1,15): {
         "p":0.15,

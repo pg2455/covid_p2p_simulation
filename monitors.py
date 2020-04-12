@@ -44,22 +44,21 @@ class SEIRMonitor(BaseMonitor):
     def run(self, env, city: City):
         while True:
             S, E, I, R = 0, 0, 0, 0
-            R0 = []
+            R0 = city.tracker.get_R0()
             for h in city.humans:
                 S += h.is_susceptible
                 E += h.is_exposed
                 I += h.is_infectious
                 R += h.is_removed
-                R0 += h.r0
 
-            print(env.timestamp, "Ro", np.mean(R0) if R0 else -1, R0)
+            print(env.timestamp, "Ro", R0, "G", city.tracker.get_generation_time())
             self.data.append({
                     'time': env.timestamp,
                     'susceptible': S,
                     'exposed': E,
                     'infectious':I,
                     'removed':R,
-                    'R': np.mean(R0) if R0 else -0.01
+                    'R': R0
                     })
 
             yield env.timeout(self.f / TICK_MINUTE)
