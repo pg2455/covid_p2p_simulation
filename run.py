@@ -147,10 +147,10 @@ def run_simu(n_people=None, init_percent_sick=0, store_capacity=30, misc_capacit
     env.run(until=simulation_days * 24 * 60 / TICK_MINUTE)
 
     # serialize and write the human
+    print("serializing human objects...")
     pickle.dump([h.serialize() for h in city.humans], open('humans.pkl', 'wb'))
 
     return monitors, city.tracker
-
 
 if __name__ == "__main__":
     simu()
