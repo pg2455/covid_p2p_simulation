@@ -6,6 +6,7 @@ import click
 from config import TICK_MINUTE
 import numpy as np
 import math
+import pickle
 
 
 @click.group()
@@ -144,6 +145,10 @@ def run_simu(n_people=None, init_percent_sick=0, store_capacity=30, misc_capacit
     for m in monitors:
         env.process(m.run(env, city=city))
     env.run(until=simulation_days * 24 * 60 / TICK_MINUTE)
+
+    # serialize and write the human
+    pickle.dump([h.serialize() for h in humans], open('humans.pkl', 'wb'))
+
     return monitors, city.tracker
 
 

@@ -256,6 +256,18 @@ class Location(simpy.Resource):
     def __hash__(self):
         return hash(self.name)
 
+    def serialize(self):
+        """ This function serializes the location object"""
+        s = self.__dict__
+        if s.get('env'):
+            del s['env']
+        if s.get('rng'):
+            del s['rng']
+        if s.get('_env'):
+            del s['_env']
+        if s.get('contamination_timestamp'):
+            del s['contamination_timestamp']
+        return s
 
 class Household(Location):
     def __init__(self, **kwargs):
@@ -307,12 +319,13 @@ class Event:
                 obs_payload = {}
                 unobs_payload = { **loc_obs, **loc_unobs, **other_obs, 'human1':{**obs[i], **unobs[i]},
                                     'human2': {**obs[1-i], **unobs[1-i]} }
+            unobs_payload.update({'risk': human.risk})
 
             human.events.append({
                 'human_id':human.name,
                 'event_type':Event.encounter,
                 'time':time,
-                'payload':{ 'observed':obs_payload, 'unobserved':unobs_payload }
+                'payload':{'observed':obs_payload, 'unobserved':unobs_payload}
             })
 
     @staticmethod
@@ -359,8 +372,6 @@ class Event:
                 'event_type': Event.contamination,
                 'time': time,
                 'payload': {
-                    'observed':{
-                    },
                     'unobserved':{
                       'exposed': True
                     }
