@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-from config import HUMAN_DISTRIBUTION
+from config import HUMAN_DISTRIBUTION, LOCATION_DISTRIBUTION
 import networkx as nx
 
 def get_nested_dict(nesting):
@@ -46,10 +46,14 @@ class Tracker(object):
         self.summarize_population(city)
 
     def summarize_population(self, city):
+        n_infected_init = sum([h.is_exposed for h in city.humans])
+        print(f"initial infection {n_infected_init}")
+
         age = pd.DataFrame([h.age for h in city.humans])
+        print("age distribution\n", age.describe())
+
         house_age = pd.DataFrame([np.mean([h.age for h in house.residents]) for house in city.households])
         house_size = pd.DataFrame([len(house.residents) for house in city.households])
-        print("age distribution\n", age.describe())
         print("house age distribution\n", house_age.describe())
         print("house size distribution\n", house_size.describe())
 
@@ -129,3 +133,36 @@ class Tracker(object):
                 bin = i
         if bin is None: import pdb; pdb.set_trace()
         self.transition_probability[hour][bin][from_location][to_location] += 1
+
+    def write_metrics(self, dirname):
+        import matplotlib.pyplot as plt
+        import networkx as nx
+        import seaborn as sns
+        import glob, os
+
+        x = self.contacts['env_infection']
+        g = self.infection_graph
+        nx.nx_pydot.write_dot(g,'DiGraph.dot')
+        pos = nx.drawing.nx_agraph.graphviz_layout(g, prog='dot')
+        nx.draw_networkx(g, pos, with_labels=True)
+        plt.savefig(f"{dirname}/infection_graph.png")
+
+        os.makedirs(f"{dirname}/contact_stats", exist_ok=True)
+        types = sorted(LOCATION_DISTRIBUTION.keys())
+        ages = sorted(HUMAN_DISTRIBUTION.keys(), key = lambda x:x[0])
+        for hour, v1 in self.transition_probability.items():
+            images = []
+            fig,ax =  plt.subplots(3,2, figsize=(18,12), sharex=True, sharey=False)
+            pos = {0:(0,0), 1:(0,1), 2:(1,0), 3:(1,1), 4:(2,0), 5:(2,1)}
+
+            for age_bin in range(len(ages)):
+                v2 = v1[age_bin]
+                x = pd.DataFrame.from_dict(v2, orient='index')
+                x = x.reindex(index=types, columns=types)
+                x = x.div(x.sum(1), axis=0)
+                g = sns.heatmap(x, ax=ax[pos[age_bin][0]][pos[age_bin][1]],
+                    linewidth=0.5, linecolor='black', annot=True, vmin=0.0, vmax=1.0, cmap=sns.cm.rocket_r)
+                g.set_title(f"{ages[age_bin][0]} <= age < {ages[age_bin][1]}")
+
+            fig.suptitle(f"Hour {hour}", fontsize=16)
+            fig.savefig(f"{dirname}/contact_stats/hour_{hour}.png")

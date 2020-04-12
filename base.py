@@ -59,10 +59,7 @@ class City(object):
         self.humans = []
         self.households = OrderedSet()
         self.initialize_humans(Human)
-        # self.stores = stores
-        # self.parks = parks
-        # self.humans = humans
-        # self.miscs = miscs
+
         self._compute_preferences()
         self.tracker = Tracker(env, self)
 
@@ -142,7 +139,7 @@ class City(object):
                         household=res,
                         workplace=workplace,
                         profession=profession[i],
-                        rho=0.6,
+                        rho=0.33,
                         gamma=0.21,
                         infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None
                         )
@@ -246,7 +243,6 @@ class Location(simpy.Resource):
     @property
     def is_contaminated(self):
         return self.env.timestamp - self.contamination_timestamp <= datetime.timedelta(days=self.max_day_contamination)
-
 
     @property
     def contamination_probability(self):

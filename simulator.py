@@ -53,7 +53,6 @@ class Human(object):
         self.visits = Visits()
         self.travelled_recently = self.rng.rand() > 0.9
 
-
         # &carefullness
         if self.rng.rand() < P_CAREFUL_PERSON:
             self.carefullness = round(self.rng.normal(55, 10)) + self.age/2
@@ -74,7 +73,7 @@ class Human(object):
         self.really_sick = self.is_exposed and self.rng.random() >= 0.9
         self.extremely_sick = self.really_sick and self.rng.random() >= 0.7 # &severe; 30% of severe cases need ICU
         self.never_recovers = self.rng.random() <= P_NEVER_RECOVERS[min(math.floor(self.age/10),8)]
-        
+
         # &symptoms, &viral-load
         # probability of being asymptomatic is basically 50%, but a bit less if you're older
         # and a bit more if you're younger
@@ -183,7 +182,7 @@ class Human(object):
 
     @property
     def reported_symptoms(self):
-        if not any(self.symptoms) or self.test_results is None or not self.human.has_app:
+        if not any(self.symptoms) or self.test_results is None or not self.has_app:
             return None
         else:
             if self.rng.rand() < self.carefullness:
@@ -242,11 +241,6 @@ class Human(object):
             mask = self.rng.rand() < self.carefullness
         return mask
 
-    def update_r(self, timedelta):
-        timedelta /= datetime.timedelta(days=1) # convert to float days
-        self.r0.append(self.n_infectious_contacts/timedelta)
-        self.n_infectious_contacts = 0
-
     @property
     def state(self):
         return [int(self.is_susceptible), int(self.is_exposed), int(self.is_infectious), int(self.is_removed)]
@@ -287,10 +281,8 @@ class Human(object):
                     self.recovered_timestamp = self.env.timestamp
                     dead = False
 
-                print(self.name, "I am dead")
                 Event.log_recovery(self, self.env.timestamp, dead)
 
-                self.update_r(self.env.timestamp - self.infection_timestamp)
                 self.infection_timestamp = None
                 Event.log_recovery(self, self.env.timestamp, dead)
                 if dead:
@@ -387,10 +379,6 @@ class Human(object):
 
 
     def at(self, location, city, duration):
-        if self.name == 1:
-            # print(self, self.env.timestamp.strftime("%b %d, %H %M"), self.location)
-            # print(self.env.timestamp.strftime("%a, %b %d, %H %M"), self.location.name, "-->", location.name, duration)
-            pass
 
         city.tracker.track_trip(from_location=self.location.location_type, to_location=location.location_type, age=self.age, hour=self.env.hour_of_day())
 
@@ -422,7 +410,6 @@ class Human(object):
                     self.n_infectious_contacts+=1
                     Event.log_exposed(h, self.env.timestamp)
                     city.tracker.track_infection('human', from_human=self, to_human=h, location=location, timestamp=self.env.timestamp)
-                    print(self.env.timestamp, f"{self.name} infected {h.name} at {location.name}")
 
             elif h.is_infectious:
                 ratio = h.asymptomatic_infection_ratio  if h.is_asymptomatic else 1.0
@@ -434,7 +421,6 @@ class Human(object):
                     h.n_infectious_contacts+=1
                     Event.log_exposed(self, self.env.timestamp)
                     city.tracker.track_infection('human', from_human=h, to_human=self, location=location, timestamp=self.env.timestamp)
-                    print(self.env.timestamp, f"{h.name} infected {self.name} at {location.name}")
 
 
             Event.log_encounter(self, h,
@@ -452,7 +438,6 @@ class Human(object):
             self.infection_timestamp = self.env.timestamp
             Event.log_exposed(self, self.env.timestamp)
             city.tracker.track_infection('env', from_human=None, to_human=self, location=location, timestamp=self.env.timestamp)
-            print(self.env.timestamp, f"{self.name} is infected by the env at {location.name}")
 
         location.remove_human(self)
 

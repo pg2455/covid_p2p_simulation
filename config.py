@@ -65,10 +65,10 @@ LOCATION_DISTRIBUTION = {
 }
 
 # house_size: 1 2 3 4 5
-HOUSE_SIZE_PREFERENCE = [0.2, 0.2, 0.35, 0.15, 0.1]
+HOUSE_SIZE_PREFERENCE = [0.30, 0.30, 0.15, 0.15, 0.1]
 HUMAN_DISTRIBUTION = {
     (1,15): {
-        "p":0.15,
+        "p":0.10,
         "residence_preference":{
             "house_size":[0.0, 0.2, 0.3, 0.3, 0.2],
             "senior_residency":0.0
@@ -94,7 +94,7 @@ HUMAN_DISTRIBUTION = {
         }
     },
     (20,40):{
-        "p":0.2,
+        "p":0.28,
         "residence_preference":{
             "house_size":[0.2, 0.3, 0.25, 0.15, 0.1],
             "senior_residency":0.0
@@ -108,7 +108,7 @@ HUMAN_DISTRIBUTION = {
 
     },
     (40,60):{
-        "p":0.2,
+        "p":0.36,
         "residence_preference":{
             "house_size":[0.05, 0.3, 0.3, 0.15, 0.2],
             "senior_residency":0.0
@@ -122,7 +122,7 @@ HUMAN_DISTRIBUTION = {
 
     },
     (60,80):{
-        "p":0.2,
+        "p":0.24,
         "residence_preference":{
             "house_size":[0.1, 0.4, 0.2, 0.2, 0.1],
             "senior_residency":0.7
@@ -136,7 +136,7 @@ HUMAN_DISTRIBUTION = {
 
     },
     (80,100):{
-        "p":0.2,
+        "p":0.07,
         "residence_preference":{
             "house_size":[0.05, 0.5, 0.1, 0.25, 0.1],
             "senior_residency":0.9
