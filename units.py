@@ -1,6 +1,8 @@
 import pint
 
 ureg = pint.UnitRegistry()
+# Define quantity class with the registry (we'll need it for type annotations)
+Quantity = pint.quantity.build_quantity_class(ureg)
 
 # Time
 S = ureg.s

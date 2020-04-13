@@ -1,65 +1,12 @@
 from collections import deque
-from addict import Dict
 from config import TICK_MINUTE
 from typing import TYPE_CHECKING
 
-from locations import location_types
+from humans.human_helpers import HumanProfile
 
 if TYPE_CHECKING:
     from base import Env
     from locations.location import Location
-
-
-class Profile(object):
-
-    ACTIVITY_LOCATION_TYPE_MAPPING = {
-        "wake": [location_types.HOUSEHOLD],
-        "sleep": [location_types.HOUSEHOLD],
-        "work": [
-            location_types.WORKPLACE,
-            location_types.SCHOOL,
-            location_types.UNIVERSITY,
-        ],
-        "exercise": [
-            location_types.PARK,
-            location_types.SIDEWALK,
-            location_types.HOUSEHOLD,
-        ],
-        "shopping": [
-            location_types.GROCER,
-            location_types.SUPERMARKET,
-            location_types.MALL,
-        ],
-        "leisure": [
-            location_types.DINER,
-            location_types.BAR,
-            location_types.MALL,
-            location_types.PARK,
-            location_types.CLUB,
-            location_types.STADIUM,
-        ],
-    }
-
-    def __init__(self):
-        # Schedules
-        self.schedules = Dict()
-        self.location_propensities = Dict()
-
-    @classmethod
-    def every_day_at(cls, time):
-        return {k: time for k in range(7)}
-
-    @classmethod
-    def every_working_day_at(cls, time):
-        return {k: time for k in range(5)}
-
-    @classmethod
-    def weekends_at(cls, time):
-        return {k: time for k in range(5, 7)}
-
-    @classmethod
-    def sample_profile(cls):
-        pass
 
 
 class ProtoHuman(object):
@@ -78,7 +25,8 @@ class ProtoHuman(object):
         self.location_entry_timestamp_history = deque(maxlen=2)
         self.bind_favorite_locations(**(favorite_locations or {}))
         # Behaviour
-        self.behaviour = Profile.sample_profile()
+        self.profile = HumanProfile.default_profile()
+        self.state = None
 
     def bind_favorite_locations(self, **favorite_locations):
         self._favorite_locations = {

@@ -4,7 +4,7 @@ from simpy import Interrupt
 from simpy.core import Infinity
 
 from base import Env
-from locations import location_types as lty
+from locations import location_helpers as lty
 
 LocationIO = namedtuple(
     "LocationIO",
@@ -30,13 +30,13 @@ class Location(object):
         self,
         env: Env,
         name: str,
-        location_type: lty.LocationType = lty.VOID,
+        location_spec: lty.LocationSpec = lty.DEFAULT_LOCATION_SPEC,
         verbose=False,
     ):
         # Meta data
         self.env = env
         self.name = name
-        self.location_type = location_type
+        self.spec = location_spec
         self.verbose = verbose
         self.now = self.env.timestamp
         # Infection book keeping
@@ -50,7 +50,7 @@ class Location(object):
         self.events = []
 
     def enter(self, human):
-        if len(self.humans) > self.location_type.capacity:
+        if len(self.humans) > self.spec.capacity:
             raise LocationFullError
         self.entry_queue.append(human)
         self.process.interrupt()
