@@ -146,8 +146,6 @@ def _reported_symptoms(all_symptoms, rng, carefullness):
 		all_reported_symptoms.append(reported_symptoms)
 	return all_reported_symptoms
 
-
-
 # &preexisting-conditions
 def _get_preexisting_conditions(age, sex, rng):
 	#if rng.rand() < 0.6 + age/200:

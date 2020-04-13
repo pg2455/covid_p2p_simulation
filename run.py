@@ -89,21 +89,21 @@ def tune():
     fig = x[['susceptible', 'exposed', 'infectious', 'removed']].iplot(asFigure=True, title="SEIR")
     fig.write_image("plots/tune/seir.png")
 
-    fig = x['R'].iplot(asFigure=True, title="R0")
-    fig.write_image("plots/tune/R.png")
-
-    x = pd.DataFrame.from_dict(stats).set_index('time')
-    x = pd.DataFrame.from_dict(tracker.contacts['all'])
-    x = x[sorted(x.columns)]
-    x = x + x.transpose()
-    x /= x.sum(1)
-
-    x = pd.DataFrame.from_dict(tracker.contacts['human_infection'])
-    x = x[sorted(x.columns)]
-    fig = x.iplot(kind='heatmap', asFigure=True)
-    fig.write_image("plots/tune/human_infection_contacts.png")
-
-    tracker.write_metrics(dirname="plots/tune")
+    # fig = x['R'].iplot(asFigure=True, title="R0")
+    # fig.write_image("plots/tune/R.png")
+    #
+    # x = pd.DataFrame.from_dict(stats).set_index('time')
+    # x = pd.DataFrame.from_dict(tracker.contacts['all'])
+    # x = x[sorted(x.columns)]
+    # x = x + x.transpose()
+    # x /= x.sum(1)
+    #
+    # x = pd.DataFrame.from_dict(tracker.contacts['human_infection'])
+    # x = x[sorted(x.columns)]
+    # fig = x.iplot(kind='heatmap', asFigure=True)
+    # fig.write_image("plots/tune/human_infection_contacts.png")
+    #
+    # tracker.write_metrics(dirname="plots/tune")
 
 @simu.command()
 def test():
@@ -148,7 +148,7 @@ def run_simu(n_people=None, init_percent_sick=0, store_capacity=30, misc_capacit
 
     # serialize and write the human
     print("serializing human objects...")
-    pickle.dump([h.serialize() for h in city.humans], open('humans.pkl', 'wb'))
+    pickle.dump([h.serialize(verbose=False) for h in city.humans], open('humans.pkl', 'wb'))
 
     return monitors, city.tracker
 

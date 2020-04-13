@@ -139,7 +139,7 @@ class City(object):
                         household=res,
                         workplace=workplace,
                         profession=profession[i],
-                        rho=0.33,
+                        rho=0.0,
                         gamma=0.21,
                         infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None
                         )
@@ -180,7 +180,7 @@ class City(object):
                 if cap - 1 > 0:
                     remaining_houses.append((res, cap-1))
 
-            # FIXME: there is circular reference
+            # FIXME: there is some circular reference here
             res.residents.append(human)
             human.assign_household(res)
             self.households.add(res)
