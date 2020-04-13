@@ -105,7 +105,8 @@ class Human(object):
         self.last_state = self.state
         self.symptom_start_time = None
         if self.is_exposed:
-            print(f"{self.name} - I am infected")
+            # print(f"{self.name} - I am infected")
+            pass
 
         # privacy
         self.M = {}
@@ -416,7 +417,8 @@ class Human(object):
 
     def at(self, location, city, duration):
         if self.name == 1:
-            print(self.env.timestamp, f"{self.name}: {self.location.name} --> {location.name}")
+            # print(self.env.timestamp, f"{self.name}: {self.location.name} --> {location.name}")
+            pass
         city.tracker.track_trip(from_location=self.location.location_type, to_location=location.location_type, age=self.age, hour=self.env.hour_of_day())
 
         self.location = location
@@ -440,7 +442,7 @@ class Human(object):
             if self.is_infectious:
                 ratio = self.asymptomatic_infection_ratio  if self.is_asymptomatic else 1.0
                 p_infection = self.infectiousness * ratio
-                x_human = contact_condition and self.rng.random() < p_infection
+                x_human = contact_condition and self.rng.random() < p_infection * CONTAGION_KNOB
 
                 if x_human and h.is_susceptible:
                     h.infection_timestamp = self.env.timestamp
@@ -449,12 +451,12 @@ class Human(object):
                     city.tracker.track_infection('human', from_human=self, to_human=h, location=location, timestamp=self.env.timestamp)
                     # this was necessary because the side-simulation needs to know about the infection time
                     h.historical_infection_timestamp = self.env.timestamp
-                    print(f"{self.name} infected {h.name} at {location}")
+                    # print(f"{self.name} infected {h.name} at {location}")
 
             elif h.is_infectious:
                 ratio = h.asymptomatic_infection_ratio  if h.is_asymptomatic else 1.0
                 p_infection = h.infectiousness * ratio # &prob_infectious
-                x_human =  contact_condition and self.rng.random() < p_infection
+                x_human =  contact_condition and self.rng.random() < p_infection * CONTAGION_KNOB
 
                 if x_human and self.is_susceptible:
                     self.infection_timestamp = self.env.timestamp
@@ -463,7 +465,7 @@ class Human(object):
                     city.tracker.track_infection('human', from_human=h, to_human=self, location=location, timestamp=self.env.timestamp)
                     # this was necessary because the side-simulation needs to know about the infection time
                     self.historical_infection_timestamp = self.env.timestamp
-                    print(f"{h.name} infected {self.name} at {location}")
+                    # print(f"{h.name} infected {self.name} at {location}")
 
             Event.log_encounter(self, h,
                                 location=location,
@@ -475,13 +477,13 @@ class Human(object):
         yield self.env.timeout(duration / TICK_MINUTE)
 
         # environmental transmission
-        x_environment = location.contamination_probability > 0 and self.rng.random() < 0.01 * location.contamination_probability # &prob_infection
+        x_environment = location.contamination_probability > 0 and self.rng.random() < ENVIRONMENTAL_INFECTION_KNOB * location.contamination_probability # &prob_infection
         if x_environment and self.is_susceptible:
             self.infection_timestamp = self.env.timestamp
             Event.log_exposed(self, self.env.timestamp)
             city.tracker.track_infection('env', from_human=None, to_human=self, location=location, timestamp=self.env.timestamp)
             self.historical_infection_timestamp = self.env.timestamp
-            print(f"{self.name} is enfected at {location}")
+            # print(f"{self.name} is enfected at {location}")
 
         location.remove_human(self)
 
