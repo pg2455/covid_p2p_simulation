@@ -249,7 +249,7 @@ class ScaleFreeTopology(Topology):
             graph.add_edge(
                 crd1,
                 crd2,
-                distance=self.precomputed_distances[i, j] * self.DEFAULT_DISTANCE_UNIT,
+                distance=self.precomputed_distances[i, j],
             )
         tree = nx.minimum_spanning_tree(graph, weight="distance")
         return tree

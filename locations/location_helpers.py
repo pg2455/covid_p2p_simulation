@@ -51,7 +51,8 @@ class MobilityMode(LocationType):
 
     @lru_cache(1000)
     def compute_travel_time(self, distance):
-        if not isinstance(distance, Quantity):
+        # isinstance doesn't work here, I checked
+        if not distance.__class__.__name__ == 'Quantity':
             distance = distance * SPACE
         travel_time = (distance / self.speed).to(TIME)
         return travel_time
@@ -75,6 +76,7 @@ class LocationSpec(object):
     closest_graph_node: int = None
     # Location specific
     location_capacity: int = None
+    location_size: float = None
 
     @property
     def capacity(self):
