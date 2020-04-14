@@ -1,4 +1,3 @@
-
 # NOISE IN SIM PARAMETERS
 LOCATION_TECH = 'gps' # &location-tech
 
@@ -68,7 +67,7 @@ LOCATION_DISTRIBUTION = {
 HOUSE_SIZE_PREFERENCE = [0.30, 0.30, 0.15, 0.15, 0.1]
 HUMAN_DISTRIBUTION = {
     (1,15): {
-        "p":0.10,
+        "p":0.04,
         "residence_preference":{
             "house_size":[0.0, 0.2, 0.3, 0.3, 0.2],
             "senior_residency":0.0
@@ -81,7 +80,7 @@ HUMAN_DISTRIBUTION = {
         }
     },
     (15,20):{
-        "p":0.05,
+        "p":0.01,
         "residence_preference":{
             "house_size":[0.05, 0.05, 0.1, 0.3, 0.5],
             "senior_residency":0.0
@@ -164,7 +163,7 @@ INFECTIOUSNESS_ONSET_DAYS = 2.5 # relative to incubation days
 AVG_RECOVERY_DAYS = 14
 SCALE_RECOVERY_DAYS = 4
 INFECTION_RADIUS = 200 # cms
-INFECTION_DURATION = 2 # minutes
+INFECTION_DURATION = 15 # minutes
 
 ASYMPTOMATIC_INFECTION_RATIO = 0.1 # &prob_infectious
 
@@ -194,6 +193,7 @@ TEST_DAYS = 2 #
 TICK_MINUTE = 2  # @param increment
 SIMULATION_DAYS = 30  # @param
 SYMPTOM_DAYS = 5  # @param
+COLLECT_LOGS = False
 
 # LIFESTYLE PARAMETERS
 ## SHOP
@@ -258,5 +258,5 @@ PLATEAU_DURATION_CLIP_LOW = 3.
 PLATEAU_DURATION_CLIP_HIGH = 9.
 
 # KNOBS
-CONTAGION_KNOB = 1.0
-ENVIRONMENTAL_INFECTION_KNOB = 0.01
+CONTAGION_KNOB = 0.9
+ENVIRONMENTAL_INFECTION_KNOB = 0.025

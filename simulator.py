@@ -15,6 +15,8 @@ from utils import _normalize_scores, _get_random_age, _get_random_sex, _get_all_
 from config import *  # PARAMETERS
 from base import *
 
+if COLLECT_LOGS is False:
+    Event = DummyEvent
 
 class Visits(object):
 
@@ -313,7 +315,7 @@ class Human(object):
 
             # recover
             if self.is_infectious and self.env.timestamp - self.infection_timestamp >= datetime.timedelta(days=self.recovery_days):
-                city.tracker.track_recovery(self.recovery_days - self.incubation_days + INFECTIOUSNESS_ONSET_DAYS)
+                city.tracker.track_recovery(self.n_infectious_contacts, self.recovery_days - self.incubation_days + INFECTIOUSNESS_ONSET_DAYS)
                 if (1 - self.never_recovers):
                     self.recovered_timestamp.append(datetime.datetime.max)
                     dead = True
@@ -337,7 +339,9 @@ class Human(object):
                 self.count_exercise=0
                 self.count_shop=0
 
-            if not WORK_FROM_HOME and not self.env.is_weekend() and hour in self.work_start_hour:
+            if ( not WORK_FROM_HOME and
+                not self.env.is_weekend() and
+                hour in self.work_start_hour):
                 yield self.env.process(self.excursion(city, "work"))
 
             elif hour in self.shopping_hours and day in self.shopping_days and self.count_shop<=self.max_shop_per_week:

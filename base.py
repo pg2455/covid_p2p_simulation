@@ -139,7 +139,7 @@ class City(object):
                         household=res,
                         workplace=workplace,
                         profession=profession[i],
-                        rho=0.0,
+                        rho=0.3,
                         gamma=0.21,
                         infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None
                         )
@@ -397,3 +397,24 @@ class Event:
                 }
             }
         )
+
+class DummyEvent:
+    @staticmethod
+    def log_encounter(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_test(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_symptom_start(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_recovery(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_exposed(*args, **kwargs):
+        pass

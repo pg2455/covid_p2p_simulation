@@ -31,12 +31,13 @@ class Tracker(object):
         self.transition_probability = get_nested_dict(4)
 
         self.sar = []
-        self.avg_infection_duration = 0
+        self.avg_infectious_duration = 0
         self.n_recovery = 0
         self.n_infectious_contacts = 0
         self.n_contacts = 0
         self.avg_generation_times = (0,0)
         self.generation_time_book = {}
+        self.n_env_infection = 0
 
         # demographics
         self.age_bins = sorted(HUMAN_DISTRIBUTION.keys(), key = lambda x:x[0])
@@ -44,6 +45,7 @@ class Tracker(object):
         self.households_age = []
 
         self.summarize_population(city)
+        self.city = city
 
     def summarize_population(self, city):
         n_infected_init = sum([h.is_exposed for h in city.humans])
@@ -69,19 +71,29 @@ class Tracker(object):
         self.n_contacts += 1
 
     def get_R0(self):
+        # only valid in long term  duration
         # https://web.stanford.edu/~jhj1/teachingdocs/Jones-on-R0.pdf
         # average infectious contacts (transmission) * average number of contacts * average duration of infection
         time_since_start =  (self.env.timestamp - self.env.initial_timestamp).total_seconds() / 86400 # DAYS
         if time_since_start == 0:
             return -1
-        # tau= self.n_infectious_contacts / self.n_contacts
-        # c_bar = self.n_contacts / time_since_start
-        tau_times_c_bar = self.n_infectious_contacts / time_since_start
-        d = self.avg_infection_duration
-        return tau_times_c_bar * d
+
+        if time_since_start > 60: # it is a rough guess for long enough time duration
+            # tau= self.n_infectious_contacts / self.n_contacts
+            # c_bar = self.n_contacts / time_since_start
+            tau_times_c_bar = self.n_infectious_contacts / time_since_start
+            d = self.avg_infectious_duration
+            # print("R0", tau_times_c_bar, d)
+            return tau_times_c_bar * d
+        else:
+            x = [h.n_infectious_contacts for h in self.city.humans if h.n_infectious_contacts > 0]
+            if x:
+                return np.mean(x)
+            return 0
 
     def get_generation_time(self):
         return self.avg_generation_times[1]
+
 
     def track_infection(self, type, from_human, to_human, location, timestamp):
         for i, (l,u) in enumerate(self.age_bins):
@@ -94,7 +106,6 @@ class Tracker(object):
             self.contacts["human_infection"][from_bin][to_bin] += 1
             self.contacts["location_human_infection"][location.location_type][from_bin][to_bin] += 1
 
-            self.n_infectious_contacts += 1
             delta = timestamp - from_human.infection_timestamp
             self.infection_graph.add_node(from_human.name, bin=from_bin, time=from_human.infection_timestamp)
             self.infection_graph.add_node(to_human.name, bin=to_bin, time=timestamp)
@@ -103,6 +114,7 @@ class Tracker(object):
             if from_human.symptom_start_time is not None:
                 self.generation_time_book[to_human.name] = from_human.symptom_start_time
         else:
+            self.n_env_infection += 1
             self.contacts["env_infection"][to_bin] += 1
             self.contacts["location_env_infection"][location.location_type][to_bin] += 1
             self.infection_graph.add_node(to_human.name, bin=to_bin, time=timestamp)
@@ -116,8 +128,9 @@ class Tracker(object):
         n, avg_gen_time = self.avg_generation_times
         self.avg_generation_times = (n+1, (avg_gen_time * n + generation_time)/(n+1))
 
-    def track_recovery(self, duration):
-        self.avg_infection_duration = (self.n_recovery * self.avg_infection_duration + duration) / (self.n_recovery + 1)
+    def track_recovery(self, n_infectious_contacts, duration):
+        self.n_infectious_contacts += n_infectious_contacts
+        self.avg_infectious_duration = (self.n_recovery * self.avg_infectious_duration + duration) / (self.n_recovery + 1)
         self.n_recovery += 1
 
     def summarize_contacts(self):
@@ -134,7 +147,12 @@ class Tracker(object):
         if bin is None: import pdb; pdb.set_trace()
         self.transition_probability[hour][bin][from_location][to_location] += 1
 
-    def write_metrics(self, dirname):
+    def write_metrics(self):
+        print("environmental transmission ratio ", 1.0 * self.n_env_infection / self.n_infectious_contacts)
+        print("Ro - book", self.get_R0())
+        print("Generation times", self.get_generation_time())
+
+    def plot_metrics(self, dirname):
         import matplotlib.pyplot as plt
         import networkx as nx
         import seaborn as sns
