@@ -152,11 +152,14 @@ class ScaleFreeTopology(Topology):
         adjacency_matrix = (
             adjacency_matrix if adjacency_matrix is not None else self.adjacency_matrix
         )
+        edge_attr_factory = lambda i, j: {
+            "distance": self.precomputed_distances[i, j] * self.DEFAULT_DISTANCE_UNIT
+        }
         edges = [
-            (coordinates[i], coordinates[j], lty.CAR)
+            (coordinates[i], coordinates[j], edge_attr_factory(i, j))
             for i, j in zip(*adjacency_matrix.nonzero())
         ]
-        graph = nx.MultiGraph()
+        graph = nx.Graph()
         graph.add_nodes_from(coordinates)
         graph.add_edges_from(edges)
         return graph
@@ -243,7 +246,11 @@ class ScaleFreeTopology(Topology):
             if crd1 == crd2:
                 continue
             i, j = self.coordinates.index(crd1), self.coordinates.index(crd2)
-            graph.add_edge(crd1, crd2, distance=self.precomputed_distances[i, j])
+            graph.add_edge(
+                crd1,
+                crd2,
+                distance=self.precomputed_distances[i, j] * self.DEFAULT_DISTANCE_UNIT,
+            )
         tree = nx.minimum_spanning_tree(graph, weight="distance")
         return tree
 

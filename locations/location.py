@@ -1,3 +1,4 @@
+import uuid
 from collections import namedtuple
 
 from simpy import Interrupt
@@ -29,13 +30,13 @@ class Location(object):
     def __init__(
         self,
         env: Env,
-        name: str,
+        name: str = None,
         location_spec: lty.LocationSpec = lty.DEFAULT_LOCATION_SPEC,
         verbose=False,
     ):
         # Meta data
         self.env = env
-        self.name = name
+        self.name = name if name is not None else uuid.uuid4().hex
         self.spec = location_spec
         self.verbose = verbose
         self.now = self.env.timestamp
@@ -140,8 +141,22 @@ class Location(object):
                 f"with {self.infected_human_count} infected humans."
             )
 
+    def distance_to(self, other):
+        if isinstance(other, Location):
+            return self.spec.coordinates.distance_to(other.spec.coordinates)
+        elif isinstance(other, lty.LocationSpec):
+            return self.spec.coordinates.distance_to(other.coordinates)
+        elif isinstance(other, lty.GeoCoordinates):
+            return self.spec.coordinates.distance_to(other)
+        else:
+            raise TypeError
+
+
     def __hash__(self):
         return hash(self.name)
+
+    def __eq__(self, other):
+        return isinstance(other, Location) and self.name == other.name
 
 
 if __name__ == "__main__":

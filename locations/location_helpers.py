@@ -8,14 +8,14 @@ e.g. if we want to know if it makes more sense to close gyms over clubs.
 from dataclasses import dataclass
 from collections import namedtuple
 from typing import List
+from functools import lru_cache
 
 from numpy import inf
-from shapely.geometry.point import Point
 from shapely.geometry.polygon import Polygon
 
 from utilities import py_utils as pyu
 from utilities.spatial import GeoCoordinates
-from units import Quantity, KM, HOUR
+from units import Quantity, KM, HOUR, SPACE, TIME
 
 
 # LocationValue summarizes how valuable a location is for a given category.
@@ -48,6 +48,21 @@ class MobilityMode(LocationType):
     max_distance: Quantity = 10e10 * KM
     speed: Quantity = 1.079e9 * KM / HOUR
     fixed_route: bool = False
+
+    @lru_cache(1000)
+    def compute_travel_time(self, distance):
+        if not isinstance(distance, Quantity):
+            distance = distance * SPACE
+        travel_time = (distance / self.speed).to(TIME)
+        return travel_time
+
+    def is_compatible_with_distance(self, distance):
+        if not isinstance(distance, Quantity):
+            distance = distance * SPACE
+        return self.min_distance <= distance <= self.max_distance
+
+    def __hash__(self):
+        return hash(self.name)
 
 
 @dataclass
@@ -86,7 +101,7 @@ VOID = LocationType("void")
 # TODO Fill in the details
 # Basic
 HOUSEHOLD = LocationType("household")
-OFFICE = LocationType("workplace",)
+OFFICE = LocationType("office",)
 SCHOOL = LocationType("school")
 UNIVERSITY = LocationType("university")
 
@@ -107,10 +122,10 @@ MALL = LocationType("mall")
 
 # Transit
 # TODO Use the subclass MobilityMode from the other branch
-SIDEWALK = LocationType("sidewalk")
-SUBWAY = LocationType("subway")
-BUS = LocationType("bus")
-CAR = LocationType("car")
+WALK = SIDEWALK = MobilityMode("sidewalk")
+SUBWAY = MobilityMode("subway")
+BUS = MobilityMode("bus")
+CAR = MobilityMode("car")
 
 # -------------------------------
 # ----------- Misc --------------
