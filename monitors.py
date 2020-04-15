@@ -186,7 +186,7 @@ class EventMonitor(BaseMonitor):
     @staticmethod
     def dump_chunk(data, dest):
         timestamp = datetime.utcnow().timestamp()
-        with zipfile.ZipFile(f"{dest}.zip", mode='a', compression=zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(f"{dest}.zip", mode='a', compression=zipfile.ZIP_STORED) as zf:
             zf.writestr(f"{timestamp}.pkl", pickle.dumps(data))
 
 

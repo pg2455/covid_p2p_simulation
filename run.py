@@ -23,7 +23,7 @@ def simu():
 @click.option('--init_percent_sick', help='% of population initially sick', type=float, default=0.01)
 @click.option('--simulation_days', help='number of days to run the simulation for', type=int, default=30)
 @click.option('--outfile', help='filename of the output (file format: .zip)', type=str, default="output/data", required=False)
-@click.option('--out_chunk_size', help='number of events per dump in outfile', type=int, default=250000, required=False)
+@click.option('--out_chunk_size', help='number of events per dump in outfile', type=int, default=2500, required=False)
 @click.option('--out_humans', help='filename of the output (file format: .pkl)', type=str, default="output/humans.pkl", required=False)
 @click.option('--print_progress', is_flag=True, help='print the evolution of days', default=False)
 @click.option('--seed', help='seed for the process', type=int, default=0)
