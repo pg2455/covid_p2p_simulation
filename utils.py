@@ -1,8 +1,11 @@
 import numpy as np
-from scipy.stats import truncnorm, gamma
+from scipy.stats import norm, truncnorm, gamma
 import datetime
 import math
+import json
+from bitarray import bitarray
 from config import *
+from functools import lru_cache
 
 def _sample_viral_load_gamma(rng, shape_mean=4.5, shape_std=.15, scale_mean=1., scale_std=.15):
 	""" This function samples the shape and scale of a gamma distribution, then returns it"""
@@ -50,7 +53,7 @@ def _get_random_sex(rng):
 		return 'other'
 
 # 2D Array of symptoms; first axis is days after exposure (infection), second is an array of symptoms
-def _get_all_symptoms_array(viral_load_plateau_start, viral_load_plateau_end, 
+def _get_all_symptoms(viral_load_plateau_start, viral_load_plateau_end,
 	                        viral_load_recovered, age, incubation_days, really_sick, extremely_sick, 
 							rng, preexisting_conditions):
         # Before showing symptoms
@@ -119,8 +122,23 @@ def _get_all_symptoms_array(viral_load_plateau_start, viral_load_plateau_end,
             if rng.rand() < 0.2:
                 symptoms.append('gastro')
             symptoms_array.append(symptoms)
-
         return symptoms_array
+
+def _reported_symptoms(all_symptoms, rng, carefulness):
+	all_reported_symptoms = []
+	for symptoms in all_symptoms:
+		reported_symptoms = []
+		# miss a day of symptoms
+		if rng.rand() < carefulness:
+			continue
+		for symptom in symptoms:
+			if rng.rand() < carefulness:
+				continue
+			reported_symptoms.append(symptom)
+		all_reported_symptoms.append(reported_symptoms)
+	return all_reported_symptoms
+
+
 
 # &preexisting-conditions
 def _get_preexisting_conditions(age, sex, rng):
@@ -257,21 +275,40 @@ def _get_preexisting_conditions(age, sex, rng):
 	return conditions
 
 
+# &canadian-demgraphics
+def _get_random_age_multinomial(AGE_DISTRIBUTION, rng):
+    x = list(zip(*AGE_DISTRIBUTION.items()))
+    idx = rng.choice(range(len(x[0])), p=x[1])
+    age_group = x[0][idx]
+    return rng.uniform(age_group[0], age_group[1])
+
+
 def _get_random_area(location_type, num, total_area, rng):
 	''' Using Dirichlet distribution since it generates a "distribution of probabilities" 
 	which will ensure that the total area allotted to a location type remains conserved 
 	while also maintaining a uniform distribution'''
-	perc_dist = {"store":0.15, "misc":0.15, "workplace":0.2, "household":0.3, "park":0.5}
-	
+	perc_dist = {"store":0.15, "misc":0.15, "workplace":0.2, "household":0.3, "park":0.05, 'hospital': 0.6, "school":0.05, "senior_residency":0.05}
+
 	# Keeping max at area/2 to ensure no location is allocated more than half of the total area allocated to its location type 
 	area = rng.dirichlet(np.ones(math.ceil(num/2)))*(perc_dist[location_type]*total_area/2)
 	area = np.append(area,rng.dirichlet(np.ones(math.floor(num/2)))*(perc_dist[location_type]*total_area/2))
 	
 	return area
 
+def _get_random_area(num, total_area, rng):
+	''' Using Dirichlet distribution since it generates a "distribution of probabilities"
+	which will ensure that the total area allotted to a location type remains conserved
+	while also maintaining a uniform distribution'''
+
+	# Keeping max at area/2 to ensure no location is allocated more than half of the total area allocated to its location type
+	area = rng.dirichlet(np.ones(math.ceil(num/2)))*(total_area/2)
+	area = np.append(area,rng.dirichlet(np.ones(math.floor(num/2)))*(total_area/2))
+	return area
+
 def _draw_random_discreet_gaussian(avg, scale, rng):
     # https://stackoverflow.com/a/37411711/3413239
-    return int(truncnorm(a=-1, b=1, loc=avg, scale=scale).rvs(1, random_state=rng).round().astype(int)[0])
+    irange, normal_pdf = _get_integer_pdf(avg, scale, 2)
+    return int(rng.choice(irange, size=1, p=normal_pdf))
 
 def _json_serialize(o):
     if isinstance(o, datetime.datetime):
@@ -279,3 +316,39 @@ def _json_serialize(o):
 
 def compute_distance(loc1, loc2):
     return np.sqrt((loc1.lat - loc2.lat) ** 2 + (loc1.lon - loc2.lon) ** 2)
+
+def _encode_message(message):
+	# encode a contact message as a string
+	# TODO: clean up the bitarray => string transformation
+	return str(np.array(message[0].tolist()).astype(int).tolist()) + "_" + str(np.array(message[1].tolist()).astype(int).tolist()) + "_" + str(message[2]) + "_" + str(message[3])
+
+def _decode_message(message):
+	# decode a string-encoded message into a tuple
+	# TODO: make this a namedtuple
+	m_i = message.split("_")
+	obs_uid = bitarray(json.loads(m_i[0]))
+	risk = bitarray(json.loads(m_i[1]))
+	date_sent = datetime.datetime.strptime(m_i[2], '%Y-%m-%d %H:%M:%S')
+	unobs_uid = int(m_i[3])
+	return obs_uid, risk, date_sent, unobs_uid
+
+@lru_cache(500)
+def _get_integer_pdf(avg, scale, num_sigmas=2):
+    irange = np.arange(avg - num_sigmas * scale, avg + num_sigmas * scale + 1)
+    normal_pdf = norm.pdf(irange - avg)
+    normal_pdf /= normal_pdf.sum()
+    return irange, normal_pdf
+
+# https://stackoverflow.com/questions/51843297/convert-real-numbers-to-binary-and-vice-versa-in-python
+def float_to_binary(x, m, n):
+    """Convert the float value `x` to a binary string of length `m + n`
+    where the first `m` binary digits are the integer part and the last
+    'n' binary digits are the fractional part of `x`.
+    """
+    x_scaled = round(x * 2 ** n)
+    return '{:0{}b}'.format(x_scaled, m + n)
+
+def binary_to_float(bstr, m, n):
+    """Convert a binary string in the format '00101010100' to its float value."""
+    return int(bstr, 2) / 2 ** n
+

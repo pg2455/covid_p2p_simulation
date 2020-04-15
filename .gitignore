@@ -1,2 +1,7 @@
+.idea/
+*.png
+*.pkl
+*.gif
+output/
 *.json
 __pycache__/

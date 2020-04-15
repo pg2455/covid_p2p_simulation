@@ -1,9 +1,20 @@
 import simpy
+import math
+import copy
 import datetime
 import itertools
+import numpy as np
+
+
+import copy
+from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION, MIN_AVG_HOUSE_AGE, HOUSE_SIZE_PREFERENCE
+from utils import compute_distance, _get_random_area
+from collections import defaultdict
 from orderedset import OrderedSet
 from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION
 from utils import compute_distance
+
+from track import Tracker
 
 class Env(simpy.Environment):
 
@@ -37,12 +48,153 @@ class Env(simpy.Environment):
 
 class City(object):
 
-    def __init__(self, stores, parks, humans, miscs):
-        self.stores = stores
-        self.parks = parks
-        self.humans = humans
-        self.miscs = miscs
+    def __init__(self, env, n_people, rng, x_range, y_range, start_time, init_percent_sick, Human):
+        self.env = env
+        self.rng = rng
+        self.x_range = x_range
+        self.y_range = y_range
+        self.total_area = (x_range[1] - x_range[0]) * (y_range[1] - y_range[0])
+        self.n_people = n_people
+        self.start_time = start_time
+        self.init_percent_sick = init_percent_sick
+        self.initialize_locations()
+
+        self.humans = []
+        self.households = OrderedSet()
+        self.initialize_humans(Human)
+
         self._compute_preferences()
+        self.tracker = Tracker(env, self)
+
+    def create_location(self, specs, type, name, area=None):
+        _cls = Location
+        if type in ['household', 'senior_residency']:
+            _cls = Household
+        if type == 'hospital':
+            _cls = Hospital
+
+        return   _cls(
+                        env=self.env,
+                        rng=self.rng,
+                        name=f"{type}:{name}",
+                        location_type=type,
+                        lat=self.rng.randint(*self.x_range),
+                        lon=self.rng.randint(*self.y_range),
+                        area=area,
+                        social_contact_factor=specs['social_contact_factor'],
+                        capacity= None if not specs['rnd_capacity'] else self.rng.randint(*specs['rnd_capacity']),
+                        surface_prob = specs['surface_prob']
+                        )
+
+    def initialize_locations(self):
+        for location, specs in LOCATION_DISTRIBUTION.items():
+            if location in ['household']:
+                continue
+
+            n = math.ceil(self.n_people/specs["n"])
+            area = _get_random_area(n, specs['area'] * self.total_area, self.rng)
+            locs = [self.create_location(specs, location, i, area[i]) for i in range(n)]
+            setattr(self, f"{location}s", locs)
+
+    def initialize_humans(self, Human):
+        # allocate humans to houses such that (unsolved)
+        # 1. average number of residents in a house is (approx.) 2.6
+        # 2. not all residents are below 15 years of age
+        # 3. age occupancy distribution follows HUMAN_DSITRIBUTION.residence_preference.house_size
+
+        # current implementation is an approximate heuristic
+
+        # make humans
+        count_humans = 0
+        house_allocations = {2:[], 3:[], 4:[], 5:[]}
+        n_houses = 0
+        for age_bin, specs in HUMAN_DISTRIBUTION.items():
+            n = math.ceil(specs['p'] * self.n_people)
+            ages = self.rng.randint(*age_bin, size=n)
+
+            senior_residency_preference = specs['residence_preference']['senior_residency']
+
+            professions = ['healthcare', 'school', 'others', 'retired']
+            p = [specs['profession_profile'][x] for x in professions]
+            profession = self.rng.choice(professions, p=p, size=n)
+
+            for i in range(n):
+                count_humans += 1
+                age = ages[i]
+
+                # residence
+                res = None
+                if self.rng.random() < senior_residency_preference:
+                    res = self.rng.choice(self.senior_residencys)
+
+                # workplace
+                if profession[i] == "healthcare":
+                    workplace = self.rng.choice(self.hospitals + self.senior_residencys)
+                elif profession[i] == 'school':
+                    workplace = self.rng.choice(self.schools)
+                elif profession[i] == 'others':
+                    workplace = self.rng.choice(self.workplaces)
+                else:
+                    workplace = res
+
+                self.humans.append(Human(
+                        env=self.env,
+                        rng=self.rng,
+                        name=count_humans,
+                        age=age,
+                        household=res,
+                        workplace=workplace,
+                        profession=profession[i],
+                        rho=0.3,
+                        gamma=0.21,
+                        infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None
+                        )
+                    )
+
+        # assign houses
+        # stores tuples - (location, current number of residents, maximum number of residents allowed)
+        remaining_houses = []
+        for human in self.humans:
+            if human.household is not None:
+                continue
+            if len(remaining_houses) == 0:
+                cap = self.rng.choice(range(1,6), p=HOUSE_SIZE_PREFERENCE, size=1)
+                x = self.create_location(LOCATION_DISTRIBUTION['household'], 'household', len(self.households))
+
+                remaining_houses.append((x, cap))
+
+            # get_best_match
+            res = None
+            for  c, (house, n_vacancy) in enumerate(remaining_houses):
+                new_avg_age = (human.age + sum(x.age for x in house.residents))/(len(house.residents) + 1)
+                if new_avg_age > MIN_AVG_HOUSE_AGE:
+                    res = house
+                    n_vacancy -= 1
+                    if n_vacancy == 0:
+                        remaining_houses = remaining_houses[:c] + remaining_houses[c+1:]
+                    break
+
+            if res is None:
+                for i, (l,u) in enumerate(HUMAN_DISTRIBUTION.keys()):
+                    if l <= human.age < u:
+                        bin = (l,u)
+                        break
+
+                house_size_preference = HUMAN_DISTRIBUTION[(l,u)]['residence_preference']['house_size']
+                cap = self.rng.choice(range(1,6), p=house_size_preference, size=1)
+                res = self.create_location(LOCATION_DISTRIBUTION['household'], 'household', len(self.households))
+                if cap - 1 > 0:
+                    remaining_houses.append((res, cap-1))
+
+            # FIXME: there is some circular reference here
+            res.residents.append(human)
+            human.assign_household(res)
+            self.households.add(res)
+
+        # assign area to house
+        area = _get_random_area(len(self.households), LOCATION_DISTRIBUTION['household']['area'] * self.total_area, self.rng)
+        for i,house in enumerate(self.households):
+            house.area = area[i]
 
     @property
     def events(self):
@@ -57,8 +209,12 @@ class City(object):
 
 class Location(simpy.Resource):
 
-    def __init__(self, env, rng, capacity=simpy.core.Infinity, name='Safeway', location_type='stores', lat=None,
-                 lon=None, area=None, cont_prob=None, surface_prob=[0.2, 0.2, 0.2, 0.2, 0.2]):
+    def __init__(self, env, rng, area, name, location_type, lat, lon,
+            social_contact_factor, capacity, surface_prob):
+
+        if capacity is None:
+            capacity = simpy.core.Infinity
+
         super().__init__(env, capacity)
         self.humans = OrderedSet() #OrderedSet instead of set for determinism when iterating
         self.name = name
@@ -67,7 +223,7 @@ class Location(simpy.Resource):
         self.lon = lon
         self.area = area
         self.location_type = location_type
-        self.social_contact_factor = cont_prob
+        self.social_contact_factor = social_contact_factor
         self.env = env
         self.contamination_timestamp = datetime.datetime.min
         self.contaminated_surface_probability = surface_prob
@@ -106,6 +262,64 @@ class Location(simpy.Resource):
     def __hash__(self):
         return hash(self.name)
 
+    def serialize(self):
+        """ This function serializes the location object"""
+        s = self.__dict__
+        if s.get('env'):
+            del s['env']
+        if s.get('rng'):
+            del s['rng']
+        if s.get('_env'):
+            del s['_env']
+        if s.get('contamination_timestamp'):
+            del s['contamination_timestamp']
+        if s.get('residents'):
+            del s['residents']
+        if s.get('humans'):
+            del s['humans']
+        return s
+
+class Household(Location):
+    def __init__(self, **kwargs):
+        super(Household, self).__init__(**kwargs)
+        self.residents = []
+
+
+class Hospital(Location):
+
+    def __init__(self, env, rng, capacity=simpy.core.Infinity, name='vgh', location_type='hospital', lat=None,
+                 lon=None, area=None, social_contact_factor=None, surface_prob=[0.2, 0.2, 0.2, 0.2, 0.2]):
+        super().__init__(env=env, rng=rng, capacity=capacity, name=name, location_type=location_type, lat=lat, lon=lon, social_contact_factor=social_contact_factor, surface_prob=surface_prob, area=area)
+        self.location_contamination = 1
+        self.icu = ICU(env=env, rng=rng, hospital=self, capacity=capacity/50, name=f"{name}_icu", location_type='icu', lat=lat, lon=lon,
+                            area=None, surface_prob=surface_prob, social_contact_factor=social_contact_factor)
+
+    def add_human(self, human):
+        human.obs_hospitalized = True
+        super().add_human(human)
+
+    def remove_human(self, human):
+        human.obs_hospitalized = False
+        super().remove_human(human)
+
+
+class ICU(Location):
+
+    def __init__(self, env, rng, hospital, capacity=simpy.core.Infinity, name='icu', location_type='icu', lat=None,
+                 lon=None, area=None, social_contact_factor=None, surface_prob=[0.2, 0.2, 0.2, 0.2, 0.2]):
+        super().__init__(env=env, rng=rng, area=area, capacity=capacity, name=name, location_type=location_type, lat=lat, lon=lon, surface_prob=surface_prob, social_contact_factor=social_contact_factor)
+        self.hospital = hospital
+
+    def add_human(self, human):
+        human.obs_hospitalized = True
+        human.obs_in_icu = True
+        super().add_human(human)
+
+    def remove_human(self, human):
+        human.obs_hospitalized = False
+        human.obs_in_icu = False
+        super().remove_human(human)
+
 
 class Event:
     test = 'test'
@@ -120,8 +334,16 @@ class Event:
 
     @staticmethod
     def log_encounter(human1, human2, location, duration, distance, time):
-        h_obs_keys = ['obs_lat', 'obs_lon', 'age', 'reported_symptoms', 'test_results', 'has_app']
-        h_unobs_keys = ['carefullness', 'viral_load', 'infectiousness', 'symptoms', 'is_exposed', 'is_infectious']
+        h_obs_keys   = ['obs_age', 'has_app', 'obs_preexisting_conditions',
+                        'obs_symptoms', 'obs_test_result', 'obs_test_type',
+                        'obs_hospitalized', 'obs_in_icu',
+                        'obs_test_validated', 'obs_lat', 'obs_lon']
+
+        h_unobs_keys = ['age', 'carefulness', 'viral_load', 'infectiousness',
+                        'symptoms', 'is_exposed', 'is_infectious',
+                        'infection_timestamp', 'really_sick',
+                        'extremely_sick']
+
         loc_obs_keys = ['location_type', 'lat', 'lon']
         loc_unobs_keys = ['contamination_probability', 'social_contact_factor']
 
@@ -129,10 +351,10 @@ class Event:
         for human in [human1, human2]:
             o = {key:getattr(human, key) for key in h_obs_keys}
             obs.append(o)
-
             u = {key:getattr(human, key) for key in h_unobs_keys}
             u['is_infected'] = human.is_exposed or human.is_infectious
             u['human_id'] = human.name
+            u['location_is_residence'] = human.household == location
             unobs.append(u)
         loc_obs = {key:getattr(location, key) for key in loc_obs_keys}
         loc_unobs = {key:getattr(location, key) for key in loc_unobs_keys}
@@ -153,8 +375,9 @@ class Event:
                 'human_id':human.name,
                 'event_type':Event.encounter,
                 'time':time,
-                'payload':{ 'observed':obs_payload, 'unobserved':unobs_payload }
+                'payload':{'observed':obs_payload, 'unobserved':unobs_payload}
             })
+
 
     @staticmethod
     def log_test(human, result, time):
@@ -183,9 +406,11 @@ class Event:
                 'time': time,
                 'payload': {
                     'observed':{
+                        "reported_symptoms": human.all_reported_symptoms
                     },
                     'unobserved':{
-                        'covid': covid
+                        'covid': covid,
+                        "all_symptoms": human.all_symptoms
                     }
 
                 }
@@ -227,3 +452,24 @@ class Event:
                 }
             }
         )
+
+class DummyEvent:
+    @staticmethod
+    def log_encounter(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_test(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_symptom_start(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_recovery(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def log_exposed(*args, **kwargs):
+        pass
