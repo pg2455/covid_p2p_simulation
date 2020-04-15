@@ -50,6 +50,9 @@ class City(object):
     def events(self):
         return list(itertools.chain(*[h.events for h in self.humans]))
 
+    def pull_events(self):
+        return list(itertools.chain(*[h.pull_events() for h in self.humans]))
+
     def _compute_preferences(self):
         """ compute preferred distribution of each human for park, stores, etc."""
         for h in self.humans:

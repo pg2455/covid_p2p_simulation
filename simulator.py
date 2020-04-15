@@ -47,7 +47,7 @@ class Human(object):
     def __init__(self, env, name, age, rng, infection_timestamp, household, workplace, hospital, rho=0.3, gamma=0.21, symptoms=[],
                  test_results=None):
         self.env = env
-        self.events = []
+        self._events = []
         self.name = name
         self.rng = rng
         self.death = False
@@ -172,6 +172,10 @@ class Human(object):
         return f"H:{self.name}, SEIR:{int(self.is_susceptible)}{int(self.is_exposed)}{int(self.is_infectious)}{int(self.is_removed)}"
 
     @property
+    def events(self):
+        return self._events
+
+    @property
     def is_susceptible(self):
         return not self.is_exposed and not self.is_infectious and not self.is_removed
         # return self.infection_timestamp is None and not self.recovered_timestamp == datetime.datetime.max
@@ -292,6 +296,14 @@ class Human(object):
         if self.last_state != self.state:
             assert self.state.index(1) in next_state[self.last_state.index(1)], f"invalid compartment transition for human:{self.name}"
             self.last_state = self.state
+
+    def pull_events(self):
+        if self._events:
+            events = self._events
+            self._events = []
+        else:
+            events = self._events
+        return events
 
 
     def run(self, city):
@@ -539,7 +551,7 @@ class Human(object):
         """This function serializes the human object for pickle."""
         # TODO: I deleted many unserializable attributes, but many of them can (and should) be converted to serializable form.
         del self.env
-        del self.events
+        del self._events
         del self.rng
         del self.visits
         del self.leaving_time

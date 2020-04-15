@@ -3,6 +3,9 @@ from base import City
 from simulator import Human
 from matplotlib import pyplot as plt
 import json
+from datetime import datetime
+import threading
+import zipfile
 import pylab as pl
 import pickle
 import numpy as np
@@ -12,14 +15,16 @@ from utils import _json_serialize
 
 class BaseMonitor(object):
 
-    def __init__(self, f=None):
+    def __init__(self, f=None, dest: str = None, chunk_size: int = None):
         self.data = []
         self.f = f or 60
+        self.dest = dest
+        self.chunk_size = chunk_size if self.dest and chunk_size else 0
 
     def run(self, env, city: City):
         raise NotImplementedError
 
-    def dump(self, dest: str = None):
+    def dump(self):
         pass
 
 
@@ -35,7 +40,7 @@ class StateMonitor(BaseMonitor):
             print(city.clock.time_of_day())
             yield env.timeout(self.f / TICK_MINUTE)
 
-    def dump(self, dest: str = None):
+    def dump(self):
         print(json.dumps(self.data, indent=1))
 
 class SEIRMonitor(BaseMonitor):
@@ -151,19 +156,38 @@ class LatLonMonitor(BaseMonitor):
 
 
 class EventMonitor(BaseMonitor):
+    def __init__(self, f=None, dest: str = None, chunk_size: int = None):
+        super().__init__(f, dest, chunk_size)
+        self._iothread = threading.Thread()
+        self._iothread.start()
 
     def run(self, env, city: City):
         while True:
             self.data = city.events
+
+            if self.chunk_size and len(self.data) > self.chunk_size:
+                self.data = city.pull_events()
+                self.dump()
+
             yield env.timeout(self.f / TICK_MINUTE)
 
-    def dump(self, dest: str = None):
-        if dest is None:
+    def dump(self):
+        if self.dest is None:
             print(json.dumps(self.data, indent=1, default=_json_serialize))
             return
 
-        with open(f"{dest}.pkl", 'wb') as f:
-            pickle.dump(self.data, f)
+        self._iothread.join()
+        self._iothread = threading.Thread(target=EventMonitor.dump_chunk, args=(self.data, self.dest))
+        self._iothread.start()
+
+    def join_iothread(self):
+        self._iothread.join()
+
+    @staticmethod
+    def dump_chunk(data, dest):
+        timestamp = datetime.utcnow().timestamp()
+        with zipfile.ZipFile(f"{dest}.zip", mode='a', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(f"{timestamp}.pkl", pickle.dumps(data))
 
 
 class TimeMonitor(BaseMonitor):
