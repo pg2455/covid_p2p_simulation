@@ -12,17 +12,7 @@ from locations import location_helpers as lty
 from utilities import py_utils as pyu
 
 
-LocationIO = namedtuple(
-    "LocationIO",
-    [
-        "human_name",
-        "location_name",
-        "io_type",
-        "timestamp",
-        "human_is_infected",
-        "num_infected_humans_at_location",
-    ],
-)
+EntryRequest = namedtuple("EntryRequest", ["human", "waiting_since"])
 
 
 @dataclass(unsafe_hash=True)
@@ -69,10 +59,13 @@ class Location(object, metaclass=pyu.InstanceRegistry):
 
     def enter(self, human):
         self.print(f"Human {human.name} wants to enter.")
+        if human not in (request.human for request in self.entry_queue):
+            self.entry_queue.appendleft(
+                EntryRequest(human=human, waiting_since=self.env.now)
+            )
         if self.at_capacity:
             self.print(f"Human {human.name} denied entry.")
             raise lty.LocationFullError
-        self.entry_queue.appendleft(human)
         self.process.interrupt()
 
     def exit(self, human):
@@ -98,24 +91,23 @@ class Location(object, metaclass=pyu.InstanceRegistry):
                 while self.entry_queue and not self.at_capacity:
                     self.register_human_entry(self.entry_queue.pop())
                 # Who infects whom
-                self.update_infections()
+                self.update_infections(str(interruption))
                 # ... and who wants to exit
                 while self.exit_queue:
                     self.register_human_exit(self.exit_queue.pop())
                 # Back to slumber. We set self.now to None as a tripwire.
                 self.now = None
 
-    def update_infections(self):
+    def update_infections(self, interruption_cause=None):
         # FIXME This is a very naive model.
         #  @Prateek: can you help with this?
-        # Infect everyone if anyone is infected in the location.
-        if self.infected_human_count > 0:
-            for human in self.humans:
-                # If the human is already infected, this will not update
-                # the infection time-stamp.
-                human.expose(self.now)
+        # Infect everyone if anyone is infected in the location (self.humans) and
+        # the entry queue (self.entry_queue).
 
-    def register_human_entry(self, human: "ProtoHuman"):
+        pass
+
+    def register_human_entry(self, request: "EntryRequest"):
+        human, waiting_since = request
         self.print(
             f"Human {human.name} ({'S' if not human.infected else 'I'}) "
             f"entered Location {self.name} at time {self.now} contaminated "
@@ -129,34 +121,12 @@ class Location(object, metaclass=pyu.InstanceRegistry):
             "was_infected_on_arrival": human.infected,
             "arrived_at": self.now,
         }
-        # Record the human entering
-        self.events.append(
-            LocationIO(
-                human_name=human.name,
-                location_name=self.name,
-                io_type="in",
-                timestamp=self.now,
-                human_is_infected=human.infected,
-                num_infected_humans_at_location=self.infected_human_count,
-            )
-        )
 
     @property
     def infected_human_count(self):
         return sum([human.infected for human in self.humans])
 
     def register_human_exit(self, human: "ProtoHuman"):
-        # Record the human exiting
-        self.events.append(
-            LocationIO(
-                human_name=human.name,
-                location_name=self.name,
-                io_type="out",
-                timestamp=self.now,
-                human_is_infected=human.infected,
-                num_infected_humans_at_location=self.infected_human_count,
-            )
-        )
         if human not in self.humans:
             raise RuntimeError(
                 f"Trying to exit human {human.name} who is not on the list "
@@ -292,7 +262,7 @@ if __name__ == "__main__":
 
     env = Env(datetime.datetime(2020, 2, 28, 0, 0))
 
-    QUEUE = lty.LocationType("queue", [1])
+    QUEUE = lty.LocationType("queue", [5])
     QUEUE_SPEC = lty.LocationSpec(QUEUE)
 
     L = Location(env, "L", location_spec=QUEUE_SPEC, verbose=True)
@@ -313,4 +283,4 @@ if __name__ == "__main__":
     env.process(F.at(L, duration=10, wait=5))
     env.process(G.at(L, duration=10, wait=6))
 
-    env.run(200)
+    env.run()
