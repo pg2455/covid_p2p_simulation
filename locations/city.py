@@ -16,72 +16,87 @@ if TYPE_CHECKING:
 
 
 class City(object):
-    def __init__(self, location_graph: nx.MultiGraph):
+    def __init__(self, location_graph: nx.MultiGraph, teleport: bool = False):
         self.location_graph = location_graph
+        # Turning on the teleporter would make humans not use a transit mode.
+        # Useful to turn off the overhead due to transit planning
+        self.teleport = teleport
 
-    def plan_trip(
-        self,
-        start: Location,
-        stop: Location,
-        mobility_mode_preference: Mapping[lty.MobilityMode, float] = None,
+    def toggle_teleporter(self, value=None):
+        if value is None:
+            self.teleport = not self.teleport
+        else:
+            self.teleport = bool(value)
+        return self
+
+    def go_to(self):
+
+        pass
+
+
+def plan_trip(
+    location_graph: nx.MultiGraph,
+    start: Location,
+    stop: Location,
+    mobility_mode_preference: Mapping[lty.MobilityMode, float] = None,
+):
+    assert start in location_graph.nodes
+    assert stop in location_graph.nodes
+    # This must come from the human
+    if mobility_mode_preference is None:
+        mobility_mode_preference = {
+            lty.WALK: 1.0,
+            lty.CAR: 1.0,
+            lty.BUS: 1.0,
+            lty.SUBWAY: 1.0,
+        }
+
+    favorite_modes = Dict()
+
+    # The weight function provides a measure of "distance" for Djikstra
+    def weight_fn(u, v, d):
+        # First case is when the mobility mode is not supported
+        valid_mobility_modes = set(d.keys()).intersection(
+            set(mobility_mode_preference.keys())
+        )
+        if not valid_mobility_modes:
+            # This means that mobility_mode_preference does not specify
+            # a preference for this mode, so we assume that the edge cannot
+            # be traversed. Returning None tells networkx just that.
+            return None
+
+        # This is an important component: it couples travel time
+        # (i.e. mode speed and distance) and preference.
+        mode_weights = {
+            mode: d[mode]["travel_time"] / mobility_mode_preference[mode]
+            for mode in valid_mobility_modes
+        }
+        min_weight = min(list(mode_weights.values()))
+        favorite_mode = [
+            mode for mode, weight in mode_weights.items() if weight == min_weight
+        ][0]
+        favorite_modes[u][v] = favorite_mode
+        return min_weight
+
+    try:
+        # Now get that Djikstra path!
+        djikstra_path = nx.dijkstra_path(
+            location_graph, start, stop, weight=weight_fn
+        )
+    except nx.exception.NetworkXNoPath:
+        # No path; destination might have to be resampled
+        return []
+    # Convert path to transits and return
+    transits = []
+    for transit_source, transit_destination in zip(
+        djikstra_path, djikstra_path[1:]
     ):
-        assert start in self.location_graph.nodes
-        assert stop in self.location_graph.nodes
-        # This must come from the human
-        if mobility_mode_preference is None:
-            mobility_mode_preference = {
-                lty.WALK: 1.0,
-                lty.CAR: 1.0,
-                lty.BUS: 1.0,
-                lty.SUBWAY: 1.0,
-            }
-
-        favorite_modes = Dict()
-
-        # The weight function provides a measure of "distance" for Djikstra
-        def weight_fn(u, v, d):
-            # First case is when the mobility mode is not supported
-            valid_mobility_modes = set(d.keys()).intersection(
-                set(mobility_mode_preference.keys())
-            )
-            if not valid_mobility_modes:
-                # This means that mobility_mode_preference does not specify
-                # a preference for this mode, so we assume that the edge cannot
-                # be traversed. Returning None tells networkx just that.
-                return None
-
-            # This is an important component: it couples travel time
-            # (i.e. mode speed and distance) and preference.
-            mode_weights = {
-                mode: d[mode]["travel_time"] / mobility_mode_preference[mode]
-                for mode in valid_mobility_modes
-            }
-            min_weight = min(list(mode_weights.values()))
-            favorite_mode = [
-                mode for mode, weight in mode_weights.items() if weight == min_weight
-            ][0]
-            favorite_modes[u][v] = favorite_mode
-            return min_weight
-
-        try:
-            # Now get that Djikstra path!
-            djikstra_path = nx.dijkstra_path(
-                self.location_graph, start, stop, weight=weight_fn
-            )
-        except nx.exception.NetworkXNoPath:
-            # No path; destination might have to be resampled
-            return []
-        # Convert path to transits and return
-        transits = []
-        for transit_source, transit_destination in zip(
-            djikstra_path, djikstra_path[1:]
-        ):
-            favorite_transit_mode = favorite_modes[transit_source][transit_destination]
-            transit = self.location_graph[transit_source][transit_destination][
-                favorite_transit_mode
-            ]["transit_location"]
-            transits.append(transit)
-        return transits
+        favorite_transit_mode = favorite_modes[transit_source][transit_destination]
+        transit = location_graph[transit_source][transit_destination][
+            favorite_transit_mode
+        ]["transit_location"]
+        transits.append(transit)
+    return transits
 
 
 # This method is expensive af, but we'll need it only once so I've
@@ -92,12 +107,13 @@ def sample_city(
     geobox: spu.GeoBox = spu.TUEBINGEN_GEOBOX,
     transit_node_distribution: Mapping[lty.MobilityMode, int] = None,
     rng: np.random.RandomState = np.random,
-    **topology_kwargs
+    **topology_kwargs,
 ):
     if location_type_distribution is None:
         location_type_distribution = {
             # Shelter
-            lty.HOUSEHOLD: 300,
+            lty.HOUSEHOLD: 295,
+            lty.SENIOR_RESIDENCY: 5,
             # Workplaces
             lty.OFFICE: 150,
             lty.SCHOOL: 3,

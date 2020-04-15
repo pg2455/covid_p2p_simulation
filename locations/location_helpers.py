@@ -116,6 +116,9 @@ class LocationType(object, metaclass=pyu.InstanceRegistry):
     def __hash__(self):
         return hash(self.name)
 
+    def __str__(self):
+        return self.name
+
 
 @dataclass
 class MobilityMode(LocationType, metaclass=pyu.InstanceRegistry):
@@ -218,6 +221,7 @@ class LocationSpec(object, metaclass=pyu.InstanceRegistry):
                 for instance in pyu.instances_of(cls)
                 if instance.location_type.config_key == config_key
             ]
+        return []
 
 
 # ------- Definitions -----------

@@ -1,11 +1,15 @@
 import uuid
 from collections import namedtuple
+from dataclasses import dataclass
+import datetime
 
+import numpy as np
 from simpy import Interrupt
 from simpy.core import Infinity
 
 from base import Env
 from locations import location_helpers as lty
+from utilities import py_utils as pyu
 
 LocationIO = namedtuple(
     "LocationIO",
@@ -24,7 +28,13 @@ class LocationFullError(Exception):
     pass
 
 
-class Location(object):
+@dataclass(unsafe_hash=True)
+class LocationState(object):
+    contamination_timestamp: datetime.datetime = datetime.datetime.min
+    max_day_contamination: int = 0
+
+
+class Location(object, metaclass=pyu.InstanceRegistry):
     """Locations are now processes."""
 
     def __init__(
@@ -32,12 +42,16 @@ class Location(object):
         env: Env,
         name: str = None,
         location_spec: lty.LocationSpec = lty.DEFAULT_LOCATION_SPEC,
+        location_state: LocationState = None,
+        rng: np.random.RandomState = None,
         verbose=False,
     ):
         # Meta data
         self.env = env
         self.name = name if name is not None else uuid.uuid4().hex
         self.spec = location_spec
+        self.state = location_state if location_state is not None else LocationState()
+        self.rng = rng if rng is not None else np.random
         self.verbose = verbose
         self.now = self.env.timestamp
         # Infection book keeping
@@ -67,8 +81,8 @@ class Location(object):
                 yield self.env.timeout(Infinity)
             except Interrupt:
                 # ^ Wakey wakey.
-                # Check the time; we do it once because timedelta in self.env.timestamp
-                # consumes a good chuck of the run-time.
+                # Check the time; we do it once because timedelta in
+                # self.env.timestamp consumes a good chuck of the run-time.
                 self.now = self.env.timestamp
                 # Check who wants to enter
                 while self.entry_queue:
@@ -82,7 +96,8 @@ class Location(object):
                 self.now = None
 
     def update_infections(self):
-        # FIXME This is a very naive model, but it'll be enough for now.
+        # FIXME This is a very naive model.
+        #  @Prateek: can you help with this?
         # Infect everyone if anyone is infected in the location.
         if self.infected_human_count > 0:
             for human in self.humans:
@@ -151,12 +166,85 @@ class Location(object):
         else:
             raise TypeError
 
-
     def __hash__(self):
         return hash(self.name)
 
     def __eq__(self, other):
         return isinstance(other, Location) and self.name == other.name
+
+    @classmethod
+    def get_instances_of_type(
+        cls,
+        location_type: lty.LocationType = None,
+        name: str = None,
+        config_key: str = None,
+    ):
+        if location_type is not None:
+            return [
+                instance
+                for instance in pyu.instances_of(cls)
+                if instance.spec.location_type == location_type
+            ]
+        if name is not None:
+            return [
+                instance
+                for instance in pyu.instances_of(cls)
+                if instance.spec.location_type.name == name
+            ]
+        if config_key is not None:
+            return [
+                instance
+                for instance in pyu.instances_of(cls)
+                if instance.spec.location_type.config_key == config_key
+            ]
+        return []
+
+    # ---------------------------------------------------------------------------------
+    # Glue-code to make this class a drop-in replacement with minimal incisions.
+    # These methods should ideally not be used above this section.
+    # ---------------------------------------------------------------------------------
+    add_human = enter
+    remove_human = exit
+
+    @property
+    def contamination_timestamp(self):
+        return self.state.contamination_timestamp
+
+    @contamination_timestamp.setter
+    def contamination_timestamp(self, value):
+        self.state.contamination_timestamp = value
+
+    @property
+    def max_day_contamination(self):
+        return self.state.max_day_contamination
+
+    @max_day_contamination.setter
+    def max_day_contamination(self, value):
+        self.state.max_day_contamination = value
+
+    def infectious_human(self):
+        return any([h.is_infectious for h in self.humans])
+
+    @property
+    def lat(self):
+        return self.spec.coordinates.lat
+
+    @property
+    def lon(self):
+        return self.spec.coordinates.lon
+
+    @property
+    def area(self):
+        return self.spec.area
+
+    @property
+    def location_type(self):
+        # calling str() on the output does the right thing
+        return self.spec.location_type
+
+    @property
+    def social_contact_factor(self):
+        return self.spec.location_type.social_contact_factor
 
 
 if __name__ == "__main__":
