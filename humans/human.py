@@ -3,6 +3,10 @@ from config import TICK_MINUTE
 from typing import TYPE_CHECKING
 
 from humans.human_helpers import HumanProfile
+from locations.location_helpers import (
+    LocationFullError,
+    POLL_INTERVAL_BETWEEN_LOCATION_ENTRY_REQUESTS,
+)
 
 if TYPE_CHECKING:
     from base import Env
@@ -21,8 +25,8 @@ class ProtoHuman(object):
         self.infected_at = None
         self.disinfected_at = None
         # Locations
-        self.location_history = deque(maxlen=2)
-        self.location_entry_timestamp_history = deque(maxlen=2)
+        self.location_history = deque([None, None], maxlen=2)
+        self.location_entry_timestamp_history = deque([None, None], maxlen=2)
         self.bind_favorite_locations(**(favorite_locations or {}))
         # Behaviour
         self.profile = HumanProfile.default_profile()
@@ -54,7 +58,15 @@ class ProtoHuman(object):
     def at(self, location: "Location", duration, wait=None):
         if wait is not None:
             yield self.env.timeout(wait / TICK_MINUTE)
-        location.enter(self)
+        while True:
+            try:
+                location.enter(self)
+                break
+            except LocationFullError:
+                yield self.env.timeout(
+                    POLL_INTERVAL_BETWEEN_LOCATION_ENTRY_REQUESTS / TICK_MINUTE
+                )
+                continue
         yield self.env.timeout(duration / TICK_MINUTE)
         location.exit(self)
 

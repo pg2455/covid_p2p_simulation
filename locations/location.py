@@ -1,5 +1,5 @@
 import uuid
-from collections import namedtuple
+from collections import namedtuple, deque
 from dataclasses import dataclass
 import datetime
 
@@ -10,6 +10,7 @@ from simpy.core import Infinity
 from base import Env
 from locations import location_helpers as lty
 from utilities import py_utils as pyu
+
 
 LocationIO = namedtuple(
     "LocationIO",
@@ -24,10 +25,6 @@ LocationIO = namedtuple(
 )
 
 
-class LocationFullError(Exception):
-    pass
-
-
 @dataclass(unsafe_hash=True)
 class LocationState(object):
     contamination_timestamp: datetime.datetime = datetime.datetime.min
@@ -36,6 +33,8 @@ class LocationState(object):
 
 class Location(object, metaclass=pyu.InstanceRegistry):
     """Locations are now processes."""
+
+    POLL_INTERVAL_IF_LOCATION_FULL = 2
 
     def __init__(
         self,
@@ -58,34 +57,45 @@ class Location(object, metaclass=pyu.InstanceRegistry):
         self.last_contaminated = None
         # Entry and exit handling
         self.humans = dict()
-        self.entry_queue = []
-        self.exit_queue = []
+        self.entry_queue = deque()
+        self.exit_queue = deque()
         self.process = self.env.process(self.run())
         # Logging
         self.events = []
 
+    def print(self, message):
+        if self.verbose:
+            print(message)
+
     def enter(self, human):
-        if len(self.humans) > self.spec.capacity:
-            raise LocationFullError
-        self.entry_queue.append(human)
+        self.print(f"Human {human.name} wants to enter.")
+        if self.at_capacity:
+            self.print(f"Human {human.name} denied entry.")
+            raise lty.LocationFullError
+        self.entry_queue.appendleft(human)
         self.process.interrupt()
 
     def exit(self, human):
-        self.exit_queue.append(human)
-        self.process.interrupt()
+        self.print(f"Human {human.name} wants to exit.")
+        self.exit_queue.appendleft(human)
+        self.process.interrupt("exit")
+
+    @property
+    def at_capacity(self):
+        return len(self.humans) >= self.spec.capacity
 
     def run(self):
         while True:
             try:
                 # The location sleeps until interrupted
                 yield self.env.timeout(Infinity)
-            except Interrupt:
+            except Interrupt as interruption:
                 # ^ Wakey wakey.
                 # Check the time; we do it once because timedelta in
                 # self.env.timestamp consumes a good chuck of the run-time.
                 self.now = self.env.timestamp
                 # Check who wants to enter
-                while self.entry_queue:
+                while self.entry_queue and not self.at_capacity:
                     self.register_human_entry(self.entry_queue.pop())
                 # Who infects whom
                 self.update_infections()
@@ -106,12 +116,11 @@ class Location(object, metaclass=pyu.InstanceRegistry):
                 human.expose(self.now)
 
     def register_human_entry(self, human: "ProtoHuman"):
-        if self.verbose:
-            print(
-                f"Human {human.name} ({'S' if not human.infected else 'I'}) "
-                f"entered Location {self.name} at time {self.now} contaminated "
-                f"with {self.infected_human_count} infected humans."
-            )
+        self.print(
+            f"Human {human.name} ({'S' if not human.infected else 'I'}) "
+            f"entered Location {self.name} at time {self.now} contaminated "
+            f"with {self.infected_human_count} infected humans."
+        )
         # Set location and timestamps of human
         human.location_history.append(self)
         human.location_entry_timestamp_history.append(self.now)
@@ -148,13 +157,18 @@ class Location(object, metaclass=pyu.InstanceRegistry):
                 num_infected_humans_at_location=self.infected_human_count,
             )
         )
-        del self.humans[human]
-        if self.verbose:
-            print(
-                f"Human {human.name} ({'S' if not human.infected else 'I'}) "
-                f"exited Location {self.name} at time {self.now} contaminated "
-                f"with {self.infected_human_count} infected humans."
+        if human not in self.humans:
+            raise RuntimeError(
+                f"Trying to exit human {human.name} who is not on the list "
+                f"of humans in location ({[human.name for human in self.humans]})."
             )
+        del self.humans[human]
+
+        self.print(
+            f"Human {human.name} ({'S' if not human.infected else 'I'}) "
+            f"exited Location {self.name} at time {self.now} contaminated "
+            f"with {self.infected_human_count} infected humans."
+        )
 
     def distance_to(self, other):
         if isinstance(other, Location):
@@ -248,27 +262,55 @@ class Location(object, metaclass=pyu.InstanceRegistry):
 
 
 if __name__ == "__main__":
+    # from humans.human import ProtoHuman
+    # import datetime
+    #
+    # env = Env(datetime.datetime(2020, 2, 28, 0, 0))
+    #
+    # L = Location(env, "L", verbose=True)
+    #
+    # A = ProtoHuman(env, "A")
+    # B = ProtoHuman(env, "B")
+    # C = ProtoHuman(env, "C").infect(L.now)
+    # D = ProtoHuman(env, "D")
+    # E = ProtoHuman(env, "E")
+    # F = ProtoHuman(env, "F")
+    # G = ProtoHuman(env, "G")
+    #
+    # env.process(A.at(L, duration=10, wait=0))
+    # env.process(B.at(L, duration=1, wait=2))
+    # env.process(C.at(L, duration=4, wait=3))
+    # env.process(D.at(L, duration=4, wait=4))
+    # env.process(E.at(L, duration=5, wait=9))
+    # env.process(F.at(L, duration=5, wait=15))
+    # env.process(G.at(L, duration=3, wait=16))
+    #
+    # env.run(100)
+
     from humans.human import ProtoHuman
     import datetime
 
     env = Env(datetime.datetime(2020, 2, 28, 0, 0))
 
-    L = Location(env, "L", verbose=True)
+    QUEUE = lty.LocationType("queue", [1])
+    QUEUE_SPEC = lty.LocationSpec(QUEUE)
+
+    L = Location(env, "L", location_spec=QUEUE_SPEC, verbose=True)
 
     A = ProtoHuman(env, "A")
     B = ProtoHuman(env, "B")
-    C = ProtoHuman(env, "C").infect(L.now)
+    C = ProtoHuman(env, "C")
     D = ProtoHuman(env, "D")
     E = ProtoHuman(env, "E")
     F = ProtoHuman(env, "F")
     G = ProtoHuman(env, "G")
 
     env.process(A.at(L, duration=10, wait=0))
-    env.process(B.at(L, duration=1, wait=2))
-    env.process(C.at(L, duration=4, wait=3))
-    env.process(D.at(L, duration=4, wait=4))
-    env.process(E.at(L, duration=5, wait=9))
-    env.process(F.at(L, duration=5, wait=15))
-    env.process(G.at(L, duration=3, wait=16))
+    env.process(B.at(L, duration=10, wait=1))
+    env.process(C.at(L, duration=10, wait=2))
+    env.process(D.at(L, duration=10, wait=3))
+    env.process(E.at(L, duration=10, wait=4))
+    env.process(F.at(L, duration=10, wait=5))
+    env.process(G.at(L, duration=10, wait=6))
 
-    env.run(100)
+    env.run(200)

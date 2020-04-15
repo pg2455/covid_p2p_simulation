@@ -26,6 +26,12 @@ LocationValue = namedtuple(
     ["core", "educational", "economic", "fitness", "health", "leisure", "mobility"],
 )
 
+
+class LocationFullError(Exception):
+    pass
+
+POLL_INTERVAL_BETWEEN_LOCATION_ENTRY_REQUESTS = 2
+
 # This specifies an almost infinite value for the max number of humans
 # in a location.
 MAX_CAPACITY = 10e10
@@ -144,7 +150,7 @@ class MobilityMode(LocationType, metaclass=pyu.InstanceRegistry):
         return hash(self.name)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class LocationSpec(object, metaclass=pyu.InstanceRegistry):
     location_type: LocationType
     coordinates: GeoCoordinates = None
