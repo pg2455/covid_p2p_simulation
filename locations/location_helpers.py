@@ -10,7 +10,7 @@ from collections import namedtuple
 from typing import List
 from functools import lru_cache
 
-from numpy import inf
+import numpy as np
 from shapely.geometry.polygon import Polygon
 
 from utilities import py_utils as pyu
@@ -26,24 +26,99 @@ LocationValue = namedtuple(
     ["core", "educational", "economic", "fitness", "health", "leisure", "mobility"],
 )
 
+# This specifies an almost infinite value for the max number of humans
+# in a location.
+MAX_CAPACITY = 10e10
+MAX_AREA = 10e10
+
 
 @dataclass
 class LocationType(object, metaclass=pyu.InstanceRegistry):
     name: str
-    capacity: int = inf
+    capacity_distribution: List[int] = None
     average_distance_between_humans: float = None
     ventilation: float = None
-    confinement_area: float = None
+    confinement_area_distribution: List[float] = None
     location_value: LocationValue = None
     # OpenStreetMap amenity
     amenities: List[str] = None
+    # Social
+    social_contact_factor: float = None
+    surface_prob: List[float] = None
+    # Meta
+    config_key: str = None
+
+    @property
+    def capacity(self):
+        if self.capacity_distribution is None:
+            return MAX_CAPACITY
+        elif isinstance(self.capacity_distribution, (tuple, list)):
+            return self.capacity_distribution[-1]
+        elif isinstance(self.capacity_distribution, int):
+            return self.capacity_distribution
+        else:
+            raise TypeError
+
+    def sample_capacity(self, rng=None):
+        if self.capacity_distribution is None:
+            return MAX_CAPACITY
+        elif isinstance(self.capacity_distribution, (list, tuple)):
+            rng = np.random if rng is None else rng
+            return rng.uniform(
+                self.capacity_distribution[0], self.capacity_distribution[1]
+            )
+        elif isinstance(self.capacity_distribution, (int, float)):
+            return self.capacity_distribution
+        else:
+            raise TypeError
+
+    @property
+    def confinement_area(self):
+        if self.confinement_area_distribution is None:
+            return MAX_AREA
+        elif isinstance(self.confinement_area_distribution, (list, tuple)):
+            return self.confinement_area_distribution[-1]
+        elif isinstance(self.confinement_area_distribution, (int, float)):
+            return self.confinement_area_distribution
+        else:
+            raise TypeError
+
+    def sample_confinement_area(self, rng=None):
+        if self.confinement_area_distribution is None:
+            return MAX_AREA
+        elif isinstance(self.confinement_area_distribution, (list, tuple)):
+            rng = np.random if rng is None else rng
+            return rng.uniform(
+                self.confinement_area_distribution[0],
+                self.confinement_area_distribution[1],
+            )
+        elif isinstance(self.confinement_area_distribution, (int, float)):
+            return self.confinement_area_distribution
+        else:
+            raise TypeError
+
+    @classmethod
+    def from_config(cls, name, config_key, config=None, **kwargs):
+        if config is None:
+            from config import LOCATION_DISTRIBUTION
+
+            config = LOCATION_DISTRIBUTION
+        kwargs_to_subkey_mapping = {
+            "capacity_distribution": "rnd_capacity",
+            "social_contact_factor": "social_contact_factor",
+            "surface_prob": "surface_prob",
+            "confinement_area_distribution": "area",
+        }
+        for kwarg_key, config_subkey in kwargs_to_subkey_mapping.items():
+            kwargs[kwarg_key] = config[config_key][config_subkey]
+        return cls(name, config_key=config_key, **kwargs)
 
     def __hash__(self):
         return hash(self.name)
 
 
 @dataclass
-class MobilityMode(LocationType):
+class MobilityMode(LocationType, metaclass=pyu.InstanceRegistry):
     min_distance: Quantity = 0 * KM
     max_distance: Quantity = 10e10 * KM
     speed: Quantity = 1.079e9 * KM / HOUR
@@ -52,7 +127,7 @@ class MobilityMode(LocationType):
     @lru_cache(1000)
     def compute_travel_time(self, distance):
         # isinstance doesn't work here, I checked
-        if not distance.__class__.__name__ == 'Quantity':
+        if not distance.__class__.__name__ == "Quantity":
             distance = distance * SPACE
         travel_time = (distance / self.speed).to(TIME)
         return travel_time
@@ -67,7 +142,7 @@ class MobilityMode(LocationType):
 
 
 @dataclass
-class LocationSpec(object):
+class LocationSpec(object, metaclass=pyu.InstanceRegistry):
     location_type: LocationType
     coordinates: GeoCoordinates = None
     polygon: Polygon = None
@@ -94,6 +169,56 @@ class LocationSpec(object):
     def lon(self):
         return self.coordinates.lon
 
+    @property
+    def area(self):
+        # TODO Check for units
+        return self.location_size
+
+    @property
+    def length(self):
+        # TODO Check for units
+        return self.location_size
+
+    @classmethod
+    def sample(cls, location_type: LocationType, rng=None, **kwargs):
+        # Sample things that can be sampled but are not specified in kwargs
+        rng = np.random if rng is None else rng
+        if "location_capacity" not in kwargs:
+            kwargs.update(
+                {"location_capacity": location_type.sample_capacity(rng=rng)},
+            )
+        if "location_size" not in kwargs:
+            kwargs.update(
+                {"location_size": location_type.sample_confinement_area(rng=rng)},
+            )
+        return cls(location_type, **kwargs)
+
+    @classmethod
+    def get_instances_of_type(
+        cls,
+        location_type: LocationType = None,
+        name: str = None,
+        config_key: str = None,
+    ):
+        if location_type is not None:
+            return [
+                instance
+                for instance in pyu.instances_of(cls)
+                if instance.location_type == location_type
+            ]
+        if name is not None:
+            return [
+                instance
+                for instance in pyu.instances_of(cls)
+                if instance.location_type.name == name
+            ]
+        if config_key is not None:
+            return [
+                instance
+                for instance in pyu.instances_of(cls)
+                if instance.location_type.config_key == config_key
+            ]
+
 
 # ------- Definitions -----------
 # -------------------------------
@@ -102,25 +227,29 @@ VOID = LocationType("void")
 
 # TODO Fill in the details
 # Basic
-HOUSEHOLD = LocationType("household")
-OFFICE = LocationType("office",)
-SCHOOL = LocationType("school")
-UNIVERSITY = LocationType("university")
+HOUSEHOLD = LocationType.from_config("household", "household")
+SENIOR_RESIDENCY = LocationType.from_config("senior_residency", "senior_residency")
+OFFICE = LocationType.from_config("office", "workplace")
+SCHOOL = LocationType.from_config("school", "school")
+UNIVERSITY = LocationType.from_config("university", "misc")
 
 # Fitness
-PARK = LocationType("park")
-GYM = LocationType("gym")
+PARK = LocationType.from_config("park", "park")
+GYM = LocationType.from_config("gym", "misc")
 
 # Leisure
-DINER = LocationType("diner")
-BAR = LocationType("bar")
-CLUB = LocationType("club")
-STADIUM = LocationType("stadium")
+DINER = LocationType.from_config("diner", "misc")
+BAR = LocationType.from_config("bar", "misc")
+CLUB = LocationType.from_config("club", "misc")
+STADIUM = LocationType.from_config("stadium", "misc", capacity_distribution=(200, 500))
 
 # Necessities
-GROCER = LocationType("grocer")
-SUPERMARKET = LocationType("supermarket")
-MALL = LocationType("mall")
+GROCER = LocationType.from_config("grocer", "store")
+SUPERMARKET = LocationType.from_config(
+    "supermarket", "store", capacity_distribution=(40, 100)
+)
+MALL = LocationType.from_config("mall", "store", capacity_distribution=(200, 400))
+HOSPITAL = LocationType.from_config("hospital", "hospital")
 
 # Transit
 # TODO Use the subclass MobilityMode from the other branch
@@ -133,3 +262,7 @@ CAR = MobilityMode("car")
 # ----------- Misc --------------
 DEFAULT_LOCATION_SPEC = LocationSpec(VOID)
 DEFAULT_OSMNX_PLACE = "Plateau Mont-Royal"
+
+
+if __name__ == "__main__":
+    print([inst.name for inst in pyu.instances_of(MobilityMode)])
