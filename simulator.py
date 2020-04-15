@@ -463,13 +463,18 @@ class Human(object):
                     is_exposed = True
                     h.n_infectious_contacts+=1
                     Event.log_exposed(self, self.env.timestamp)
+
             if self.is_susceptible and is_exposed:
                 self.infection_timestamp = self.env.timestamp
+                got_infected = True
+            else:
+                got_infected = False
 
             Event.log_encounter(self, h,
                                 location=location,
                                 duration=t_near,
                                 distance=distance,
+                                got_infected=got_infected,
                                 # cm  #TODO: prop to Area and inv. prop to capacity
                                 time=self.env.timestamp,
                                 )

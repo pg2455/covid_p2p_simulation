@@ -171,7 +171,7 @@ class Event:
         return [Event.test, Event.encounter, Event.symptom_start, Event.contamination]
 
     @staticmethod
-    def log_encounter(human1, human2, location, duration, distance, time):
+    def log_encounter(human1, human2, got_infected, location, duration, distance, time):
         h_obs_keys   = ['obs_age', 'has_app', 'obs_preexisting_conditions',
                         'obs_symptoms', 'obs_test_result', 'obs_test_type',
                         'obs_hospitalized', 'obs_in_icu', 
@@ -192,6 +192,7 @@ class Event:
             u = {key:getattr(human, key) for key in h_unobs_keys}
             u['is_infected'] = human.is_exposed or human.is_infectious
             u['human_id'] = human.name
+            u['got_infected_by_this_encounter'] = got_infected
             if u['household']:
                 u['household'] = u['household'].serialize()
             if u['workplace']:
