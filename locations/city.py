@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, Mapping, Union, List
+from collections import namedtuple
 import itertools
 from addict import Dict
 
@@ -13,14 +14,28 @@ from utilities import spatial as spu
 
 if TYPE_CHECKING:
     from base import Env
+    from humans.human import ProtoHuman
+
+
+TransitSpec = namedtuple("TransitSpec", ["transit", "travel_time"])
 
 
 class City(object):
-    def __init__(self, location_graph: nx.MultiGraph, teleport: bool = False):
+    def __init__(
+        self,
+        location_graph: nx.MultiGraph,
+        teleport: bool = False,
+        verbose: bool = False,
+    ):
         self.location_graph = location_graph
         # Turning on the teleporter would make humans not use a transit mode.
         # Useful to turn off the overhead due to transit planning
         self.teleport = teleport
+        self.verbose = verbose
+
+    def print(self, message):
+        if self.verbose:
+            print(message() if callable(message) else message)
 
     def toggle_teleporter(self, value=None):
         if value is None:
@@ -29,9 +44,78 @@ class City(object):
             self.teleport = bool(value)
         return self
 
-    def go_to(self):
+    def go(
+        self,
+        human: "ProtoHuman",
+        duration: Union[float, int],
+        from_location: Location,
+        to_location: Location,
+    ):
+        if self.teleport:
+            self.print(f"{human.name} teleporting to {to_location.name}.")
+            yield human.env.process(human.at(to_location, duration=duration))
+            return
+        # If we're not teleporting, plan a trip.
+        mobility_mode_preference = getattr(human, "mobility_mode_preference", None)
+        self.print(
+            lambda: f"Planning trip from {from_location.name} to "
+            f"{to_location.name} (distance = {from_location.distance_to(to_location)})"
+            f" for {human.name}."
+        )
+        trip_plan = self.plan_trip(
+            start=from_location,
+            stop=to_location,
+            mobility_mode_preference=mobility_mode_preference,
+        )
+        if len(trip_plan) == 0:
+            # This shouldn't happen.
+            raise RuntimeError("Path not found in graph.")
+        for transit, travel_time in trip_plan:
+            self.print(
+                f"{human.name} is in transit {transit.name} "
+                f"({transit.location_type.name})for travel time {travel_time}."
+            )
+            yield human.env.process(human.at(transit, duration=travel_time))
+        yield human.env.process(human.at(to_location, duration=duration))
 
-        pass
+    def plan_trip(
+        self,
+        start: Location,
+        stop: Location,
+        mobility_mode_preference: Mapping[lty.MobilityMode, float] = None,
+    ) -> List[TransitSpec]:
+        return plan_trip(self.location_graph, start, stop, mobility_mode_preference)
+
+    def sample_location_of_type(
+        self,
+        location_type: lty.LocationType = None,
+        name: str = None,
+        config_key: str = None,
+        rng: np.random.RandomState = None,
+    ):
+        # Filter
+        if location_type is not None:
+            locations = [
+                location
+                for location in self.location_graph.nodes
+                if location.spec.location_type == location_type
+            ]
+        elif name is not None:
+            locations = [
+                location
+                for location in self.location_graph.nodes
+                if location.spec.location_type.name == name
+            ]
+        elif config_key is not None:
+            locations = [
+                location
+                for location in self.location_graph.nodes
+                if location.spec.location_type.config_key == config_key
+            ]
+        else:
+            return None
+        rng = np.random if rng is None else rng
+        return rng.choice(locations)
 
 
 def plan_trip(
@@ -39,18 +123,21 @@ def plan_trip(
     start: Location,
     stop: Location,
     mobility_mode_preference: Mapping[lty.MobilityMode, float] = None,
-):
+) -> List[TransitSpec]:
     assert start in location_graph.nodes
     assert stop in location_graph.nodes
     # This must come from the human
     if mobility_mode_preference is None:
-        mobility_mode_preference = {
-            lty.WALK: 1.0,
-            lty.CAR: 1.0,
-            lty.BUS: 1.0,
-            lty.SUBWAY: 1.0,
-        }
+        mobility_mode_preference = lty.DEFAULT_MOBILITY_MODE_PREFERENCE
 
+    travel_distance = start.distance_to(stop)
+    # Modulate the mobility_mode_preferences by the travel distance
+    mobility_mode_preference = {
+        mode: (
+            preference * (1 if mode.is_compatible_with_distance(travel_distance) else 0)
+        )
+        for mode, preference in mobility_mode_preference.items()
+    }
     favorite_modes = Dict()
 
     # The weight function provides a measure of "distance" for Djikstra
@@ -80,22 +167,21 @@ def plan_trip(
 
     try:
         # Now get that Djikstra path!
-        djikstra_path = nx.dijkstra_path(
-            location_graph, start, stop, weight=weight_fn
-        )
+        djikstra_path = nx.dijkstra_path(location_graph, start, stop, weight=weight_fn)
     except nx.exception.NetworkXNoPath:
         # No path; destination might have to be resampled
         return []
     # Convert path to transits and return
     transits = []
-    for transit_source, transit_destination in zip(
-        djikstra_path, djikstra_path[1:]
-    ):
+    for transit_source, transit_destination in zip(djikstra_path, djikstra_path[1:]):
         favorite_transit_mode = favorite_modes[transit_source][transit_destination]
         transit = location_graph[transit_source][transit_destination][
             favorite_transit_mode
         ]["transit_location"]
-        transits.append(transit)
+        travel_time = location_graph[transit_source][transit_destination][
+            favorite_transit_mode
+        ]["travel_time"]
+        transits.append(TransitSpec(transit=transit, travel_time=travel_time))
     return transits
 
 
@@ -104,29 +190,13 @@ def plan_trip(
 def sample_city(
     env: "Env",
     location_type_distribution: Mapping[lty.LocationType, int] = None,
-    geobox: spu.GeoBox = spu.TUEBINGEN_GEOBOX,
+    geobox: spu.GeoBox = lty.DEFAULT_GEOBOX,
     transit_node_distribution: Mapping[lty.MobilityMode, int] = None,
     rng: np.random.RandomState = np.random,
     **topology_kwargs,
 ):
     if location_type_distribution is None:
-        location_type_distribution = {
-            # Shelter
-            lty.HOUSEHOLD: 295,
-            lty.SENIOR_RESIDENCY: 5,
-            # Workplaces
-            lty.OFFICE: 150,
-            lty.SCHOOL: 3,
-            lty.UNIVERSITY: 2,
-            # Necessities
-            lty.SUPERMARKET: 5,
-            lty.GROCER: 20,
-            lty.GYM: 5,
-            # Leisure
-            lty.PARK: 5,
-            lty.DINER: 5,
-            lty.BAR: 5,
-        }
+        location_type_distribution = lty.DEFAULT_LOCATION_TYPE_DISTRIBUTION
     num_locations = sum(list(location_type_distribution.values()))
 
     if transit_node_distribution is None:
@@ -167,6 +237,7 @@ def sample_city(
             raise RuntimeError
     # Now, to construct the graph over locations
     location_graph = nx.MultiGraph()
+    location_graph.add_nodes_from(locations)
     for coord_u, coord_v in coordinate_graph.edges:
         # Find the indices of u and v, and add an edge over corresponding
         # locations if required
@@ -194,7 +265,7 @@ def sample_city(
                 env, location_spec=lty.LocationSpec(lty.CAR, location_size=distance),
             ),
         }
-        # Assume all edges are drivable and walkable (given enough time).
+        # Assume all edges are walkable and driveable.
         location_graph.add_edge(
             location_u,
             location_v,
@@ -232,7 +303,7 @@ def sample_city(
     return City(location_graph)
 
 
-if __name__ == "__main__":
+def test_dijkstra():
     import datetime
     import time
     from base import Env
@@ -253,4 +324,37 @@ if __name__ == "__main__":
         stop = np.random.choice(city.location_graph.nodes)
         trip = city.plan_trip(start, stop)
     toc = time.time()
-    print(f"Per run: {(toc - tic)/100}")
+    print(f"Per run: {(toc - tic) / 100}")
+
+
+def test_with_human():
+    import datetime
+    import time
+    from base import Env
+    from humans.human import ProtoHuman
+
+    env = Env(datetime.datetime(2020, 2, 28, 0, 0))
+
+    print("Sampling city...")
+    city = sample_city(
+        env, distance_weight=6.0, degree_weight=0.05, num_sampling_steps="auto"
+    )
+    city.verbose = True
+    print(f"Number of edges: {len(city.location_graph.edges)}")
+
+    human = ProtoHuman(env, "Bob")
+    workplace = city.sample_location_of_type(lty.OFFICE)
+    home = city.sample_location_of_type(lty.HOUSEHOLD)
+
+    env.process(
+        city.toggle_teleporter(False).go(
+            human=human, duration=100, from_location=home, to_location=workplace
+        )
+    )
+    env.run(until=200)
+
+
+if __name__ == "__main__":
+    test_dijkstra()
+    # test_with_human()
+    pass

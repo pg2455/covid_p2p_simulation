@@ -14,8 +14,9 @@ import numpy as np
 from shapely.geometry.polygon import Polygon
 
 from utilities import py_utils as pyu
+from utilities import spatial as spu
 from utilities.spatial import GeoCoordinates
-from units import Quantity, KM, HOUR, SPACE, TIME
+from units import KM, HOUR, SPACE, TIME, is_quantity, Quantity
 
 
 # LocationValue summarizes how valuable a location is for a given category.
@@ -29,6 +30,7 @@ LocationValue = namedtuple(
 
 class LocationFullError(Exception):
     pass
+
 
 POLL_INTERVAL_BETWEEN_LOCATION_ENTRY_REQUESTS = 2
 
@@ -128,21 +130,21 @@ class LocationType(object, metaclass=pyu.InstanceRegistry):
 
 @dataclass
 class MobilityMode(LocationType, metaclass=pyu.InstanceRegistry):
-    min_distance: Quantity = 0 * KM
-    max_distance: Quantity = 10e10 * KM
-    speed: Quantity = 1.079e9 * KM / HOUR
+    min_distance: "Quantity" = 0 * KM
+    max_distance: "Quantity" = 10e10 * KM
+    speed: "Quantity" = 1.079e9 * KM / HOUR
     fixed_route: bool = False
 
     @lru_cache(1000)
     def compute_travel_time(self, distance):
         # isinstance doesn't work here, I checked
-        if not distance.__class__.__name__ == "Quantity":
+        if not is_quantity(distance):
             distance = distance * SPACE
         travel_time = (distance / self.speed).to(TIME)
         return travel_time
 
     def is_compatible_with_distance(self, distance):
-        if not isinstance(distance, Quantity):
+        if not is_quantity(distance):
             distance = distance * SPACE
         return self.min_distance <= distance <= self.max_distance
 
@@ -262,17 +264,65 @@ MALL = LocationType.from_config("mall", "store", capacity_distribution=(200, 400
 HOSPITAL = LocationType.from_config("hospital", "hospital")
 
 # Transit
-# TODO Use the subclass MobilityMode from the other branch
-WALK = SIDEWALK = MobilityMode("sidewalk")
-SUBWAY = MobilityMode("subway")
-BUS = MobilityMode("bus")
-CAR = MobilityMode("car")
-
+# fmt: off
+SIDEWALK = MobilityMode(
+    "sidewalk",
+    speed=5 * KM / HOUR,
+    max_distance=5 * KM,
+)
+WALK = SIDEWALK
+CAR = MobilityMode(
+    "car",
+    speed=50 * KM / HOUR,
+    min_distance=3 * KM,
+)
+SUBWAY = MobilityMode(
+    "subway",
+    speed=60 * KM / HOUR,
+    capacity_distribution=[200, 300],
+    fixed_route=True,
+)
+BUS = MobilityMode(
+    "bus",
+    speed=30 * KM / HOUR,
+    capacity_distribution=[30, 50],
+    min_distance=2 * KM,
+    max_distance=20 * KM,
+    fixed_route=True,
+)
+# fmt: on
 # -------------------------------
-# ----------- Misc --------------
+# --------- Defaults ------------
+DEFAULT_LOCATION_TYPE_DISTRIBUTION = {
+    # Shelter
+    HOUSEHOLD: 295,
+    SENIOR_RESIDENCY: 5,
+    # Workplaces
+    OFFICE: 150,
+    SCHOOL: 3,
+    UNIVERSITY: 2,
+    # Necessities
+    SUPERMARKET: 5,
+    GROCER: 20,
+    GYM: 5,
+    # Leisure
+    PARK: 5,
+    DINER: 5,
+    BAR: 5,
+}
+
+DEFAULT_GEOBOX = spu.TUEBINGEN_GEOBOX
+
 DEFAULT_LOCATION_SPEC = LocationSpec(VOID)
+
 DEFAULT_OSMNX_PLACE = "Plateau Mont-Royal"
 
+DEFAULT_MOBILITY_MODE_PREFERENCE = {
+    WALK: 1.0,
+    CAR: 1.0,
+    BUS: 1.0,
+    SUBWAY: 1.0,
+}
 
 if __name__ == "__main__":
     print([inst.name for inst in pyu.instances_of(MobilityMode)])

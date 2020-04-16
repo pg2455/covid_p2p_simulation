@@ -3,6 +3,7 @@ from config import TICK_MINUTE
 from typing import TYPE_CHECKING
 
 from humans.human_helpers import HumanProfile
+import units
 from locations.location_helpers import (
     LocationFullError,
     POLL_INTERVAL_BETWEEN_LOCATION_ENTRY_REQUESTS,
@@ -57,7 +58,7 @@ class ProtoHuman(object):
 
     def at(self, location: "Location", duration, wait=None):
         if wait is not None:
-            yield self.env.timeout(wait / TICK_MINUTE)
+            yield self.env.timeout(units.as_float(wait / TICK_MINUTE, units.MIN))
         while True:
             try:
                 location.enter(self)
@@ -67,7 +68,7 @@ class ProtoHuman(object):
                     POLL_INTERVAL_BETWEEN_LOCATION_ENTRY_REQUESTS / TICK_MINUTE
                 )
                 continue
-        yield self.env.timeout(duration / TICK_MINUTE)
+        yield self.env.timeout(units.as_float(duration / TICK_MINUTE, units.MIN))
         location.exit(self)
 
     def expose(self, now):
