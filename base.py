@@ -4,16 +4,12 @@ import copy
 import datetime
 import itertools
 import numpy as np
-
-
-import copy
-from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION, LOCATION_DISTRIBUTION, HUMAN_DISTRIBUTION, MIN_AVG_HOUSE_AGE, HOUSE_SIZE_PREFERENCE
-from utils import compute_distance, _get_random_area
 from collections import defaultdict
 from orderedset import OrderedSet
-from config import TICK_MINUTE, MAX_DAYS_CONTAMINATION
-from utils import compute_distance
+import copy
 
+from config import *
+from utils import compute_distance, _get_random_area
 from track import Tracker
 
 class Env(simpy.Environment):
@@ -48,7 +44,7 @@ class Env(simpy.Environment):
 
 class City(object):
 
-    def __init__(self, env, n_people, rng, x_range, y_range, start_time, init_percent_sick, Human):
+    def __init__(self, env, n_people, rng, x_range, y_range, start_time, init_percent_sick, Human, sim_days):
         self.env = env
         self.rng = rng
         self.x_range = x_range
@@ -57,12 +53,16 @@ class City(object):
         self.n_people = n_people
         self.start_time = start_time
         self.init_percent_sick = init_percent_sick
+        self.sim_days=sim_days
+        print("Initializing locations ...")
         self.initialize_locations()
 
         self.humans = []
         self.households = OrderedSet()
+        print("Initializing humans ...")
         self.initialize_humans(Human)
 
+        print("Computing their preferences")
         self._compute_preferences()
         self.tracker = Tracker(env, self)
 
@@ -145,9 +145,10 @@ class City(object):
                         household=res,
                         workplace=workplace,
                         profession=profession[i],
-                        rho=0.3,
+                        rho=0.1,
                         gamma=0.21,
-                        infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None
+                        infection_timestamp=self.start_time if self.rng.random() < self.init_percent_sick else None,
+                        sim_days=self.sim_days
                         )
                     )
 
@@ -200,6 +201,9 @@ class City(object):
     def events(self):
         return list(itertools.chain(*[h.events for h in self.humans]))
 
+    def pull_events(self):
+        return list(itertools.chain(*[h.pull_events() for h in self.humans]))
+
     def _compute_preferences(self):
         """ compute preferred distribution of each human for park, stores, etc."""
         for h in self.humans:
@@ -249,7 +253,6 @@ class Location(simpy.Resource):
     def is_contaminated(self):
         return self.env.timestamp - self.contamination_timestamp <= datetime.timedelta(days=self.max_day_contamination)
 
-
     @property
     def contamination_probability(self):
         if self.is_contaminated:
@@ -286,13 +289,42 @@ class Household(Location):
 
 
 class Hospital(Location):
+    ICU_AREA = 0.10
+    ICU_CAPACITY = 0.10
+    def __init__(self, **kwargs):
+        env = kwargs.get('env')
+        rng = kwargs.get('rng')
+        capacity = kwargs.get('capacity')
+        name = kwargs.get("name")
+        lat = kwargs.get('lat')
+        lon = kwargs.get('lon')
+        area = kwargs.get('area')
+        surface_prob = kwargs.get('surface_prob')
+        social_contact_factor = kwargs.get('social_contact_factor')
 
-    def __init__(self, env, rng, capacity=simpy.core.Infinity, name='vgh', location_type='hospital', lat=None,
-                 lon=None, area=None, social_contact_factor=None, surface_prob=[0.2, 0.2, 0.2, 0.2, 0.2]):
-        super().__init__(env=env, rng=rng, capacity=capacity, name=name, location_type=location_type, lat=lat, lon=lon, social_contact_factor=social_contact_factor, surface_prob=surface_prob, area=area)
+        super(Hospital, self).__init__( env=env,
+                                        rng=rng,
+                                        area=area * (1-self.ICU_AREA),
+                                        name=name,
+                                        location_type="hospital",
+                                        lat=lat,
+                                        lon=lon,
+                                        social_contact_factor=social_contact_factor,
+                                        capacity=int(capacity* (1- self.ICU_CAPACITY)),
+                                        surface_prob=surface_prob,
+                                        )
         self.location_contamination = 1
-        self.icu = ICU(env=env, rng=rng, hospital=self, capacity=capacity/50, name=f"{name}_icu", location_type='icu', lat=lat, lon=lon,
-                            area=None, surface_prob=surface_prob, social_contact_factor=social_contact_factor)
+        self.icu = ICU( env=env,
+                        rng=rng,
+                        area=area * (self.ICU_AREA),
+                        name=f"{name}-icu",
+                        location_type="hospital-icu",
+                        lat=lat,
+                        lon=lon,
+                        social_contact_factor=social_contact_factor,
+                        capacity=int(capacity* (self.ICU_CAPACITY)),
+                        surface_prob=surface_prob,
+                        )
 
     def add_human(self, human):
         human.obs_hospitalized = True
@@ -305,10 +337,8 @@ class Hospital(Location):
 
 class ICU(Location):
 
-    def __init__(self, env, rng, hospital, capacity=simpy.core.Infinity, name='icu', location_type='icu', lat=None,
-                 lon=None, area=None, social_contact_factor=None, surface_prob=[0.2, 0.2, 0.2, 0.2, 0.2]):
-        super().__init__(env=env, rng=rng, area=area, capacity=capacity, name=name, location_type=location_type, lat=lat, lon=lon, surface_prob=surface_prob, social_contact_factor=social_contact_factor)
-        self.hospital = hospital
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def add_human(self, human):
         human.obs_hospitalized = True
@@ -333,28 +363,33 @@ class Event:
         return [Event.test, Event.encounter, Event.symptom_start, Event.contamination]
 
     @staticmethod
-    def log_encounter(human1, human2, location, duration, distance, time):
+    def log_encounter(human1, human2, location, duration, distance, infectee, time):
         h_obs_keys   = ['obs_age', 'has_app', 'obs_preexisting_conditions',
-                        'obs_symptoms', 'obs_test_result', 'obs_test_type',
-                        'obs_hospitalized', 'obs_in_icu',
-                        'obs_test_validated', 'obs_lat', 'obs_lon']
+                        'obs_symptoms',
+                        'obs_hospitalized', 'obs_in_icu', 'wearing_mask',
+                        'obs_lat', 'obs_lon', 'preexisting_conditions']
 
         h_unobs_keys = ['age', 'carefulness', 'viral_load', 'infectiousness',
                         'symptoms', 'is_exposed', 'is_infectious',
                         'infection_timestamp', 'really_sick',
-                        'extremely_sick']
+                        'extremely_sick', 'sex']
 
         loc_obs_keys = ['location_type', 'lat', 'lon']
         loc_unobs_keys = ['contamination_probability', 'social_contact_factor']
 
         obs, unobs = [], []
+
+        same_household = (human1.household.name == human2.household.name) & (location.name == human1.household.name)
         for human in [human1, human2]:
             o = {key:getattr(human, key) for key in h_obs_keys}
             obs.append(o)
             u = {key:getattr(human, key) for key in h_unobs_keys}
-            u['is_infected'] = human.is_exposed or human.is_infectious
             u['human_id'] = human.name
             u['location_is_residence'] = human.household == location
+            u['got_exposed'] = infectee == human.name if infectee else False
+            u['exposed_other'] = infectee != human.name if infectee else False
+            u['same_household'] = same_household
+            u['infectiousness_start_time'] = None if not u['got_exposed'] else human.infection_timestamp + datetime.timedelta(days=human.incubation_days - INFECTIOUSNESS_ONSET_DAYS)
             unobs.append(u)
         loc_obs = {key:getattr(location, key) for key in loc_obs_keys}
         loc_unobs = {key:getattr(location, key) for key in loc_unobs_keys}
@@ -380,7 +415,7 @@ class Event:
 
 
     @staticmethod
-    def log_test(human, result, time):
+    def log_test(human, test_result, test_type, time):
         human.events.append(
             {
                 'human_id': human.name,
@@ -388,7 +423,8 @@ class Event:
                 'time': time,
                 'payload': {
                     'observed':{
-                        'result': result,
+                        'result': test_result,
+                        'test_type':test_type
                     },
                     'unobserved':{
                     }
@@ -418,7 +454,7 @@ class Event:
         )
 
     @staticmethod
-    def log_exposed(human, time):
+    def log_exposed(human, source, time):
         human.events.append(
             {
                 'human_id': human.name,
@@ -428,7 +464,11 @@ class Event:
                     'observed':{
                     },
                     'unobserved':{
-                      'exposed': True
+                      'exposed': True,
+                      'source':source.name,
+                      'source_is_location': 'human' not in source.name,
+                      'source_is_human': 'human' in source.name,
+                      'infectiousness_start_time': human.infection_timestamp + datetime.timedelta(days=human.incubation_days - INFECTIOUSNESS_ONSET_DAYS)
                     }
 
                 }
