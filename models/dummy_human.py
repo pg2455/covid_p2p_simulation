@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.append(os.getcwd())
 import datetime
 from bitarray import bitarray
 from collections import namedtuple

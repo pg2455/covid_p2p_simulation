@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.append(os.getcwd())
 import pickle
 import json
 import zipfile
@@ -20,19 +17,17 @@ from models.helper import messages_to_np, symptoms_to_np, candidate_exposures, r
 from utils import _encode_message
 from joblib import Parallel, delayed
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='Run Risk Models and Plot results')
-    parser.add_argument('--plot_path', type=str, default="output/plots/risk/")
-    parser.add_argument('--data_path', type=str, default="output/data.pkl")
-    parser.add_argument('--cluster_path', type=str, default="output/clusters.json")
-    parser.add_argument('--output_file', type=str, default='output/output.pkl')
-    parser.add_argument('--plot_daily', action="store_true")
-    parser.add_argument('--risk_model', type=str, default="tristan", choices=['yoshua', 'lenka', 'eilif', 'tristan'])
-    parser.add_argument('--seed', type=int, default="0")
-    parser.add_argument('--save_training_data', action="store_true")
-    parser.add_argument('--n_jobs', type=int, default=1, help="Default is no parallelism, jobs = 1")
-    args = parser.parse_args()
-    return args
+parser = argparse.ArgumentParser(description='Run Risk Models and Plot results')
+parser.add_argument('--plot_path', type=str, default="output/plots/risk/")
+parser.add_argument('--data_path', type=str, default="output/data.zip")
+parser.add_argument('--cluster_path', type=str, default="output/clusters.json")
+parser.add_argument('--output_file', type=str, default='output/output.pkl')
+parser.add_argument('--plot_daily', action="store_true")
+parser.add_argument('--risk_model', type=str, default="tristan", choices=['yoshua', 'lenka', 'eilif', 'tristan'])
+parser.add_argument('--seed', type=int, default="0")
+parser.add_argument('--save_training_data', action="store_true")
+parser.add_argument('--n_jobs', type=int, default=4, help="Default is no parallelism, jobs = 4")
+
 
 def hash_id_day(hid, day):
     return str(hid) + "-" + str(day)
@@ -101,9 +96,10 @@ def proc_human(params):
                                     }
     return {human.name: daily_output, "human": human}
 
+
 def main(args=None):
-    if not args:
-        args = parse_args()
+    if args is None:
+        args = parser.parse_args()
 
     # read and filter the pickles
     logs = []

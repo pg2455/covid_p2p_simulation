@@ -81,5 +81,5 @@ def rolling_infectiousness(start, date, human):
 
     try:
         return rollings[cur_day]
-    except Exception:
+    except IndexError:
         return rolling

@@ -124,6 +124,14 @@ def tune(seed):
 
 
 @simu.command()
+def model():
+    import sys
+    from models.run import main as m_main
+    sys.argv = sys.argv[:1] + sys.argv[2:]
+    m_main()
+
+
+@simu.command()
 def test():
     import unittest
     loader = unittest.TestLoader()

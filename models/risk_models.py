@@ -1,6 +1,4 @@
-import sys
 import os
-sys.path.append(os.getcwd())
 import numpy as np
 from config import *
 from utils import _encode_message, _decode_message, binary_to_float
@@ -13,14 +11,14 @@ It's primary functionality is to run the message clustering and risk prediction 
 """
 class RiskModelBase:
     @classmethod
-    def update_risk_encounter(self, human, message):
+    def update_risk_encounter(cls, human, message):
         # This function is called for every encounter message
-        raise "Unimplemented"
+        raise NotImplementedError
 
     @classmethod
-    def update_risk_risk_update(self, human, update_message):
+    def update_risk_risk_update(cls, human, update_message):
         # This function is called for every risk update message
-        raise "Unimplemented"
+        raise NotImplementedError
 
     @classmethod
     def update_risk_daily(cls, human, now):
