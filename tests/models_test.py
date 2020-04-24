@@ -1,6 +1,8 @@
 import datetime
 import glob
+import os
 import pickle
+import shutil
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 import unittest
 
@@ -55,8 +57,10 @@ class ModelsPreprocessingTest(unittest.TestCase):
 
             m_main(args)
 
-            days_output = glob.glob(f"{preprocess_d}/daily_outputs/*/")
-            days_output.sort()
+            days_output_prefix = f"{preprocess_d}/daily_outputs/"
+            days_output = glob.glob(days_output_prefix + "*/")
+            days_output = sorted(days_output, key=lambda path:
+                    int(path[len(days_output_prefix):-1]))
 
             output = []
             for day_output in days_output:
