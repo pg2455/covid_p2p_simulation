@@ -1,20 +1,8 @@
 # -*- coding: utf-8 -*-
-import simpy
-
-import itertools
-import numpy as np
-from collections import defaultdict, namedtuple
-import datetime
-from bitarray import bitarray
-import operator
-import math
-
 from utils import _normalize_scores, _get_random_sex, _get_covid_symptoms, \
-    _get_preexisting_conditions, _draw_random_discreet_gaussian, _json_serialize, _sample_viral_load_piecewise, \
-    _get_random_area, _encode_message, _decode_message, float_to_binary, binary_to_float, _reported_symptoms, \
-    _get_mask_wearing,  _get_cold_symptoms_v2, _get_flu_symptoms_v2, _reported_symptoms
+    _get_preexisting_conditions, _draw_random_discreet_gaussian, _sample_viral_load_piecewise, \
+    _get_cold_symptoms_v2, _get_flu_symptoms_v2
 
-from config import *
 from base import *
 if COLLECT_LOGS is False:
     Event = DummyEvent

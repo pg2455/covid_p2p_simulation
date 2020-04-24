@@ -1,11 +1,87 @@
+from collections import OrderedDict, namedtuple
+
 import numpy as np
 from scipy.stats import norm, truncnorm, gamma
 import datetime
 import math
-import json
-from bitarray import bitarray
 from config import *
 from functools import lru_cache
+
+ConditionProbability = namedtuple('ConditionProbability', ['name', 'id', 'age', 'sex', 'probability'])
+
+PREEXISTING_CONDITIONS = OrderedDict([
+    ('smoking', [
+        ConditionProbability('smoking', 5, 12, 'a', 0.0),
+        ConditionProbability('smoking', 5, 18, 'a', 0.03),
+        ConditionProbability('smoking', 5, 65, 'a', 0.185),
+        ConditionProbability('smoking', 5, 1000, 'a', 0.09)
+    ]),
+    ('diabetes', [
+        ConditionProbability('diabetes', 1, 18, 'a', 0.005),
+        ConditionProbability('diabetes', 1, 35, 'a', 0.009),
+        ConditionProbability('diabetes', 1, 50, 'a', 0.039),
+        ConditionProbability('diabetes', 1, 75, 'a', 0.13),
+        ConditionProbability('diabetes', 1, 1000, 'a', 0.179)
+    ]),
+    ('heart_disease', [
+        ConditionProbability('heart_disease', 2, 20, 'a', 0.001),
+        ConditionProbability('heart_disease', 2, 35, 'a', 0.005),
+        ConditionProbability('heart_disease', 2, 50, 'f', 0.013),
+        ConditionProbability('heart_disease', 2, 50, 'm', 0.021),
+        ConditionProbability('heart_disease', 2, 50, 'a', 0.017),
+        ConditionProbability('heart_disease', 2, 75, 'f', 0.13),
+        ConditionProbability('heart_disease', 2, 75, 'm', 0.178),
+        ConditionProbability('heart_disease', 2, 75, 'a', 0.15),
+        ConditionProbability('heart_disease', 2, 1000, 'f', 0.311),
+        ConditionProbability('heart_disease', 2, 1000, 'm', 0.44),
+        ConditionProbability('heart_disease', 2, 1000, 'a', 0.375)
+    ]),
+    ('cancer', [
+        ConditionProbability('cancer', 6, 30, 'a', 0.00029),
+        ConditionProbability('cancer', 6, 60, 'a', 0.0029),
+        ConditionProbability('cancer', 6, 90, 'a', 0.029),
+        ConditionProbability('cancer', 6, 1000, 'a', 0.05)
+    ]),
+    ('COPD', [
+        ConditionProbability('COPD', 3, 35, 'a', 0.0),
+        ConditionProbability('COPD', 3, 50, 'a', 0.015),
+        ConditionProbability('COPD', 3, 65, 'f', 0.037),
+        ConditionProbability('COPD', 3, 1000, 'a', 0.075)
+    ]),
+    ('asthma', [
+        ConditionProbability('asthma', 4, 10, 'f', 0.07),
+        ConditionProbability('asthma', 4, 10, 'm', 0.12),
+        ConditionProbability('asthma', 4, 10, 'a', 0.09),
+        ConditionProbability('asthma', 4, 25, 'f', 0.15),
+        ConditionProbability('asthma', 4, 25, 'm', 0.19),
+        ConditionProbability('asthma', 4, 25, 'a', 0.17),
+        ConditionProbability('asthma', 4, 75, 'f', 0.11),
+        ConditionProbability('asthma', 4, 75, 'm', 0.06),
+        ConditionProbability('asthma', 4, 75, 'a', 0.08),
+        ConditionProbability('asthma', 4, 1000, 'f', 0.12),
+        ConditionProbability('asthma', 4, 1000, 'm', 0.08),
+        ConditionProbability('asthma', 4, 1000, 'a', 0.1)
+    ]),
+    ('stroke', [
+        ConditionProbability('stroke', 7, 20, 'a', 0.0),
+        ConditionProbability('stroke', 7, 40, 'a', 0.01),
+        ConditionProbability('stroke', 7, 60, 'a', 0.03),
+        ConditionProbability('stroke', 7, 80, 'a', 0.04),
+        ConditionProbability('stroke', 7, 1000, 'a', 0.07)
+    ]),
+    ('immuno-suppressed', [  # (3.6% on average)
+        ConditionProbability('immuno-suppressed', 0, 40, 'a', 0.005),
+        ConditionProbability('immuno-suppressed', 0, 65, 'a', 0.036),
+        ConditionProbability('immuno-suppressed', 0, 85, 'a', 0.045),
+        ConditionProbability('immuno-suppressed', 0, 1000, 'a', 0.20)
+    ]),
+    ('lung_disease', [
+        ConditionProbability('lung_disease', 8, 0, 'a', 0.0)
+    ]),
+    ('pregnant', [
+        ConditionProbability('pregnant', 9, 0, 'f', 0.0)
+    ])
+])
 
 def log(str, logfile=None, timestamp=False):
 	if timestamp:
@@ -412,189 +488,41 @@ def _get_preexisting_conditions(age, sex, rng):
     #else:
     conditions = []
 
-    # &smoking
-    if age < 12:
-        pass
-    elif age < 18:
-        if rng.rand() < 0.03:
-            conditions.append('smoker')
-    elif age < 65:
-        if rng.rand() < 0.185:
-            conditions.append('smoker')
-    else:
-        if rng.rand() < 0.09:
-            conditions.append('smoker')
+    for c_name, c_prob in PREEXISTING_CONDITIONS.items():
+        rand = rng.rand()
+        modifier = 1.
+        if c_name == 'heart_disease':
+            if 'diabetes' or 'smoker' in conditions:
+                modifier = 2
+            else:
+                modifier = 0.5
+        if c_name in ('cancer', 'COPD'):
+            if 'smoker' in conditions:
+                modifier = 1.3
+            else:
+                modifier = 0.95
+        # TODO: This currently excludes immuno-suppressed condiction when
+        #  setting the modifier value. Is That wanted?
+        if c_name == 'stroke':
+            modifier = len(conditions)
+        if c_name == 'immuno-suppressed':
+            if 'cancer' in conditions:
+                modifier = 1.2
+            else:
+                modifier = 0.98
+        for p in c_prob:
+            if age < p.age:
+                if p.sex == 'a' or sex.lower().startswith(p.sex):
+                    if rand < modifier * p.probability:
+                        conditions.append(p.name)
+                    break
 
-    # &diabetes
-    if age < 18:
-        if rng.rand() < .005:
-            conditions.append('diabetes')
-    elif age < 35:
-        if rng.rand() < .009:
-            conditions.append('diabetes')
-    elif age < 50:
-        if rng.rand() < .039:
-            conditions.append('diabetes')
-    elif age < 75:
-        if rng.rand() < .13:
-            conditions.append('diabetes')
-    else:
-        if rng.rand() < .179:
-            conditions.append('diabetes')
-
-    # &heart disease
-    if 'diabetes' or 'smoker' in conditions:
-        modifier = 2
-    else:
-        modifier = 0.5
-    if age < 20:
-        if rng.rand() < modifier *.001:
-            conditions.append('heart_disease')
-    elif age < 35:
-        if rng.rand() < modifier * .005:
-            conditions.append('heart_disease')
-    elif age < 50:
-        if sex.lower().startswith('f'):
-            if rng.rand() < modifier * .013:
-                conditions.append('heart_disease')
-        elif sex.lower().startswith('m'):
-            if rng.rand() < modifier * .021:
-                conditions.append('heart_disease')
-        else:
-            if rng.rand() < modifier * .017:
-                conditions.append('heart_disease')
-    elif age < 75:
-        if sex.lower().startswith('f'):
-            if rng.rand() < modifier * .13:
-                conditions.append('heart_disease')
-        elif sex.lower().startswith('m'):
-            if rng.rand() < modifier * .178:
-                conditions.append('heart_disease')
-        else:
-            if rng.rand() < modifier * .15:
-                conditions.append('heart_disease')
-    else:
-        if sex.lower().startswith('f'):
-            if rng.rand() < modifier * .311:
-                conditions.append('heart_disease')
-        elif sex.lower().startswith('m'):
-            if rng.rand() < modifier * .44:
-                conditions.append('heart_disease')
-        else:
-            if rng.rand() < modifier * .375:
-                conditions.append('heart_disease')
-
-    # &cancer
-    modifier = 1.3 if 'smoker' in conditions else 0.95
-    if age < 30:
-        if rng.rand() < modifier * 0.00029:
-            conditions.append('cancer')
-    elif age < 60:
-        if rng.rand() < modifier * 0.0029:
-            conditions.append('cancer')
-    elif age < 90:
-        if rng.rand() < modifier * 0.029:
-            conditions.append('cancer')
-    else:
-        if rng.rand() < modifier * 0.05:
-            conditions.append('cancer')
-
-
-    # &COPD
-    if age < 35:
-        pass
-    elif age < 50:
-        if rng.rand() < modifier * .015:
-            conditions.append('COPD')
-    elif age < 65:
-        if rng.rand() < modifier * .037:
-            conditions.append('COPD')
-    else:
-        if rng.rand() < modifier * .075:
-            conditions.append('COPD')
-
-    # &asthma
-    if age < 10:
-        if sex.lower().startswith('f'):
-            if rng.rand() < .07:
-                conditions.append('asthma')
-        elif sex.lower().startswith('m'):
-            if rng.rand() < .12:
-                conditions.append('asthma')
-        else:
-            if rng.rand() < .09:
-                conditions.append('asthma')
-    elif age < 25:
-        if sex.lower().startswith('f'):
-            if rng.rand() < .15:
-                conditions.append('asthma')
-        elif sex.lower().startswith('m'):
-            if rng.rand() < .19:
-                conditions.append('asthma')
-        else:
-            if rng.rand() < .17:
-                conditions.append('asthma')
-    elif age < 75:
-        if sex.lower().startswith('f'):
-            if rng.rand() < .11:
-                conditions.append('asthma')
-        elif sex.lower().startswith('m'):
-            if rng.rand() < .06:
-                conditions.append('asthma')
-        else:
-            if rng.rand() < .08:
-                conditions.append('asthma')
-    else:
-        if sex.lower().startswith('f'):
-            if rng.rand() < .12:
-                conditions.append('asthma')
-        elif sex.lower().startswith('m'):
-            if rng.rand() < .08:
-                conditions.append('asthma')
-        else:
-            if rng.rand() < .1:
-                conditions.append('asthma')
-
-
-    # &stroke
-    modifier = len(conditions)
-    if age < 20:
-        pass
-    elif age < 40:
-        if rng.rand() < modifier * 0.01:
-            conditions.append('stroke')
-    elif age < 60:
-        if rng.rand() < modifier * 0.03:
-            conditions.append('stroke')
-    elif age < 80:
-        if rng.rand() < modifier * 0.04:
-            conditions.append('stroke')
-    else:
-        if rng.rand() < modifier * 0.07:
-            conditions.append('stroke')
-
-
-    # &immuno-suppressed (3.6% on average)
-    modifier = 1.2 if 'cancer' in conditions else 0.98
-    if age < 40:
-        if rng.rand() < modifier * 0.005:
-            conditions.append('immuno-suppressed')
-    elif age < 65:
-        if rng.rand() < modifier * 0.036:
-            conditions.append('immuno-suppressed')
-    elif age < 85:
-        if rng.rand() < modifier * 0.045:
-            conditions.append('immuno-suppressed')
-    else:
-        if rng.rand() < modifier * 0.20:
-            conditions.append('immuno-suppressed')
-
-    #TODO PUT IN QUICKLY WITHOUT VERIFICATION OF NUMBERS
+    # TODO PUT IN QUICKLY WITHOUT VERIFICATION OF NUMBERS
     if 'asthma' in conditions or 'COPD' in conditions:
         conditions.append('lung_disease')
 
     if sex.lower().startswith('f') and age > 18 and age < 50:
-        p_pregnant = rng.normal(27,5)
+        p_pregnant = rng.normal(27, 5)
         if rng.rand() < p_pregnant:
             conditions.append('pregnant')
 
@@ -629,20 +557,6 @@ def _json_serialize(o):
 def compute_distance(loc1, loc2):
     return np.sqrt((loc1.lat - loc2.lat) ** 2 + (loc1.lon - loc2.lon) ** 2)
 
-def _encode_message(message):
-    # encode a contact message as a string
-    # TODO: clean up the bitarray => string transformation
-    return str(np.array(message[0].tolist()).astype(int).tolist()) + "_" + str(np.array(message[1].tolist()).astype(int).tolist()) + "_" + str(message[2]) + "_" + str(message[3])
-
-def _decode_message(message):
-    # decode a string-encoded message into a tuple
-    # TODO: make this a namedtuple
-    m_i = message.split("_")
-    obs_uid = bitarray(json.loads(m_i[0]))
-    risk = bitarray(json.loads(m_i[1]))
-    date_sent = datetime.datetime.strptime(m_i[2], '%Y-%m-%d %H:%M:%S')
-    unobs_uid = int(m_i[3])
-    return obs_uid, risk, date_sent, unobs_uid
 
 @lru_cache(500)
 def _get_integer_pdf(avg, scale, num_sigmas=2):
@@ -650,16 +564,3 @@ def _get_integer_pdf(avg, scale, num_sigmas=2):
     normal_pdf = norm.pdf(irange - avg)
     normal_pdf /= normal_pdf.sum()
     return irange, normal_pdf
-
-# https://stackoverflow.com/questions/51843297/convert-real-numbers-to-binary-and-vice-versa-in-python
-def float_to_binary(x, m, n):
-    """Convert the float value `x` to a binary string of length `m + n`
-    where the first `m` binary digits are the integer part and the last
-    'n' binary digits are the fractional part of `x`.
-    """
-    x_scaled = round(x * 2 ** n)
-    return '{:0{}b}'.format(x_scaled, m + n)
-
-def binary_to_float(bstr, m, n):
-    """Convert a binary string in the format '00101010100' to its float value."""
-    return int(bstr, 2) / 2 ** n

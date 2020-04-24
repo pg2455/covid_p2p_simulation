@@ -7,7 +7,6 @@ import numpy as np
 from collections import defaultdict
 from orderedset import OrderedSet
 import copy
-
 from config import *
 from utils import compute_distance, _get_random_area
 from track import Tracker
@@ -371,7 +370,6 @@ class ICU(Location):
         human.obs_hospitalized = False
         human.obs_in_icu = False
         super().remove_human(human)
-
 
 class Event:
     test = 'test'
