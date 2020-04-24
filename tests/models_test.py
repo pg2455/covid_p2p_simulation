@@ -37,14 +37,23 @@ class ModelsPreprocessingTest(unittest.TestCase):
             monitors[0].dump()
             monitors[0].join_iothread()
 
-            args = m_parser.parse_args([f'--data_path={logs_f.name}',
-                                        f'--output_dir={preprocess_d}/',
-                                        '--risk_model=tristan',
-                                        '--seed=0', '--save_training_data',
-                                        '--n_jobs=4'])
-            m_main(args)
+            os.makedirs(os.path.join(preprocess_d, 'plots', 'risk'))
+            os.makedirs(os.path.join(preprocess_d, 'daily_outputs'))
+            cluster_data_input_path = os.path.join(preprocess_d, os.path.basename(logs_f.name))
+            shutil.copy(logs_f.name, cluster_data_input_path)
 
-            preprocess_d = '/Users/satya/travail/MILA/CODE/covid_p2p_simulation/output/tmpn_fpii1d'
+            args = m_parser.parse_args([
+                f'--plot_path={os.path.join(preprocess_d, "plots", "risk")}',
+                f'--cluster_path={os.path.join(preprocess_d, "clusters.json")}',
+                f'--output_file={os.path.join(preprocess_d, "output.pkl")}',
+                f'--data_path={cluster_data_input_path}',
+                '--risk_model=tristan',
+                '--seed=0',
+                '--save_training_data',
+                '--n_jobs=4'
+            ])
+
+            m_main(args)
 
             days_output = glob.glob(f"{preprocess_d}/daily_outputs/*/")
             days_output.sort()
