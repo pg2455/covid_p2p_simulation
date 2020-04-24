@@ -492,7 +492,7 @@ def _get_preexisting_conditions(age, sex, rng):
         rand = rng.rand()
         modifier = 1.
         if c_name == 'heart_disease':
-            if 'diabetes' or 'smoker' in conditions:
+            if 'diabetes' in conditions or 'smoker' in conditions:
                 modifier = 2
             else:
                 modifier = 0.5
