@@ -95,6 +95,7 @@ def proc_human(params):
                                 "is_recovered": is_recovered,
                                 "recovery_day": recovery_day,
                                 "infectiousness": infectiousness,
+                                "exposure_encounter": exposure_encounter,
                                 "true_preexisting_conditions": conditions_to_np(human.preexisting_conditions),
                                 "true_age": encode_age(human.age),
                                 "true_sex": encode_sex(human.sex)
