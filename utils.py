@@ -482,12 +482,11 @@ def _reported_symptoms(all_symptoms, rng, carefulness):
     return all_reported_symptoms
 
 # &preexisting-conditions
-def _get_preexisting_conditions(age, sex, rng):
+def _get_preexisting_conditions(age, sex, rng, disable_modifiers=False):
     #if rng.rand() < 0.6 + age/200:
     #    conditions = None
     #else:
     conditions = []
-
     for c_name, c_prob in PREEXISTING_CONDITIONS.items():
         rand = rng.rand()
         modifier = 1.
@@ -513,7 +512,8 @@ def _get_preexisting_conditions(age, sex, rng):
         for p in c_prob:
             if age < p.age:
                 if p.sex == 'a' or sex.lower().startswith(p.sex):
-                    if rand < modifier * p.probability:
+                    if (disable_modifiers and rand < p.probability) or \
+                            (not disable_modifiers and rand < modifier * p.probability):
                         conditions.append(p.name)
                     break
 
