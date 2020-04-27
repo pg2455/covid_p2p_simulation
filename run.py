@@ -4,6 +4,7 @@ import numpy as np
 import math
 import pickle
 import os
+import sys
 import zipfile
 
 from config import TICK_MINUTE
@@ -25,12 +26,13 @@ def simu():
 @click.option('--out_chunk_size', help='number of events per dump in outfile', type=int, default=2500, required=False)
 @click.option('--outdir', help='the directory to write data to', type=str, default="output", required=False)
 @click.option('--seed', help='seed for the process', type=int, default=0)
+@click.option('--n_jobs', help='number of parallel procs to run of risk pred', type=int, default=1)
 def sim(n_people=None,
         init_percent_sick=0,
         start_time=datetime.datetime(2020, 2, 28, 0, 0),
         simulation_days=30,
         outdir=None, out_chunk_size=None,
-        seed=0):
+        seed=0, n_jobs=1):
 
     import config
     config.COLLECT_LOGS = True
@@ -50,7 +52,7 @@ def sim(n_people=None,
         simulation_days=simulation_days,
         outfile=outfile, out_chunk_size=out_chunk_size,
         print_progress=True,
-        seed=seed
+        seed=seed, n_jobs=n_jobs
     )
     monitors[0].dump()
     monitors[0].join_iothread()
@@ -109,27 +111,32 @@ def tune(n_people, simulation_days, seed):
     # x = pd.DataFrame.from_dict(stats).set_index('time')
     # fig = x[['susceptible', 'exposed', 'infectious', 'removed']].iplot(asFigure=True, title="SEIR")
     # fig.write_image("plots/tune/seir.png")
-    # timenow = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    # data = dict()
-    # data['contacts'] = dict(tracker.contacts)
-    # data['cases_per_day'] = tracker.cases_per_day
-    # data['r_0'] = tracker.r_0
-    # data['r'] = tracker.r
-    # data['dist_encounters'] = dict(tracker.dist_encounters)
-    # data['time_encounters'] = dict(tracker.time_encounters)
-    # data['day_encounters'] = dict(tracker.day_encounters)
-    # data['hour_encounters'] = dict(tracker.hour_encounters)
-    # data['daily_age_group_encounters'] = dict(tracker.daily_age_group_encounters)
-    # data['age_distribution'] = tracker.age_distribution
-    # data['sex_distribution'] = tracker.sex_distribution
-    # data['house_size'] = tracker.house_size
-    # data['house_age'] = tracker.house_age
-    # data['symptoms'] = dict(tracker.symptoms)
-    # data['transition_probability'] = dict(tracker.transition_probability)
+    timenow = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    data = dict()
+    data['contacts'] = dict(tracker.contacts)
+    data['cases_per_day'] = tracker.cases_per_day
+    data['r_0'] = tracker.r_0
+    data['r'] = tracker.r
+    data['dist_encounters'] = dict(tracker.dist_encounters)
+    data['time_encounters'] = dict(tracker.time_encounters)
+    data['day_encounters'] = dict(tracker.day_encounters)
+    data['hour_encounters'] = dict(tracker.hour_encounters)
+    data['daily_age_group_encounters'] = dict(tracker.daily_age_group_encounters)
+    data['age_distribution'] = tracker.age_distribution
+    data['sex_distribution'] = tracker.sex_distribution
+    data['house_size'] = tracker.house_size
+    data['house_age'] = tracker.house_age
+    data['symptoms'] = dict(tracker.symptoms)
+    data['transition_probability'] = dict(tracker.transition_probability)
     #
-    # import dill
-    # with open(f"logs/tracker_data_n_{n_people}_seed_{seed}_{timenow}.pkl", 'wb') as f:
-    #     dill.dump(data, f)
+    import dill
+    s = config.INTERVENTION
+    if s == "Tracing":
+        s = f"{s}_{config.RISK_MODEL}"
+
+    filename = f"tracker_data_n_{n_people}_seed_{seed}_{timenow}_{s}.pkl"
+    with open(f"logs/{filename}", 'wb') as f:
+        dill.dump(data, f)
 
     # logfile = os.path.join(f"logs/log_n_{n_people}_seed_{seed}_{timenow}.txt")
     tracker.write_metrics(None)
@@ -168,7 +175,7 @@ def run_simu(n_people=None, init_percent_sick=0,
              start_time=datetime.datetime(2020, 2, 28, 0, 0),
              simulation_days=10,
              outfile=None, out_chunk_size=None,
-             print_progress=False, seed=0, other_monitors=[]):
+             print_progress=False, seed=0, n_jobs=1, other_monitors=[]):
 
     rng = np.random.RandomState(seed)
     env = Env(start_time)
@@ -191,7 +198,17 @@ def run_simu(n_people=None, init_percent_sick=0,
     for m in monitors:
         env.process(m.run(env, city=city))
 
-    env.process(city.run(1440))
+    all_possible_symptoms = ['moderate', 'mild', 'severe', 'extremely-severe', 'fever',
+                             'chills', 'gastro', 'diarrhea', 'nausea_vomiting', 'fatigue',
+                             'unusual', 'hard_time_waking_up', 'headache', 'confused',
+                             'lost_consciousness', 'trouble_breathing', 'sneezing',
+                             'cough', 'runny_nose', 'aches', 'sore_throat', 'severe_chest_pain',
+                             'loss_of_taste', 'mild_trouble_breathing', 'light_trouble_breathing', 'moderate_trouble_breathing',
+                             'heavy_trouble_breathing']
+    monitors[0].dump()
+    monitors[0].join_iothread()
+    env.process(city.run(1440, outfile, start_time, all_possible_symptoms, n_jobs))
+
     env.run(until=simulation_days * 24 * 60 / TICK_MINUTE)
 
     return monitors, city.tracker

@@ -7,10 +7,11 @@ import numpy as np
 from collections import defaultdict
 from orderedset import OrderedSet
 import copy
-
+import zipfile
 from config import *
-from utils import compute_distance, _get_random_area, _draw_random_discreet_gaussian
+from utils import compute_distance, _get_random_area, _draw_random_discreet_gaussian, get_intervention
 from track import Tracker
+from models.run import integrated_risk_pred
 from interventions import *
 
 class Env(simpy.Environment):
@@ -69,7 +70,7 @@ class City(simpy.Environment):
         print("Computing their preferences")
         self._compute_preferences()
         self.tracker = Tracker(env, self)
-        self.tracker.track_initialized_covid_params(self.humans)
+        # self.tracker.track_initialized_covid_params(self.humans)
 
         self.intervention = None
 
@@ -234,21 +235,22 @@ class City(simpy.Environment):
             h.stores_preferences = [(compute_distance(h.household, s) + 1e-1) ** -1 for s in self.stores]
             h.parks_preferences = [(compute_distance(h.household, s) + 1e-1) ** -1 for s in self.parks]
 
-    def run(self, duration):
-        day = 0
-        while True:
-            day += 1
+    def run(self, duration, outfile, start_time, all_possible_symptoms, n_jobs):
+        current_day = 0
+        with zipfile.ZipFile(outfile + ".zip", 'r') as zf:
+            start_pkl = zf.namelist()[0]
 
-            if day == 30:
-                # self.intervention = Tracing(RISK_MODEL)
-                # self.intervention = Lockdown()
-                # self.intervention = Quarantine()
-                # self.intervention = SocialDistancing()
-                # self.intervention = WearMask(MASKS_SUPPLY)
-                pass
+        while True:
+            if RISK_MODEL not in LOCAL_RISK_MODELS:
+                self.humans, start_pkl = integrated_risk_pred(self.humans, outfile, start_time, current_day, all_possible_symptoms, start_pkl, n_jobs=n_jobs)
+            if INTERVENTION_DAY > 0 and current_day == INTERVENTION_DAY:
+                self.intervention = get_intervention(INTERVENTION)
+                print(self.intervention)
+
+            self.tracker.increment_day()
+            current_day += 1
 
             yield self.env.timeout(duration / TICK_MINUTE)
-
 
 class Location(simpy.Resource):
 
@@ -389,7 +391,6 @@ class ICU(Location):
         human.obs_in_icu = False
         super().remove_human(human)
 
-
 class Event:
     test = 'test'
     encounter = 'encounter'
@@ -486,7 +487,7 @@ class Event:
                 'time': time,
                 'payload': {
                     'observed':{
-                        "reported_symptoms": human.all_reported_symptoms
+                        "reported_symptoms": human.obs_symptoms
                     },
                     'unobserved':{
                         'infectiousness': human.infectiousness,
