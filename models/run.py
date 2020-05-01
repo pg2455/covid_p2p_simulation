@@ -43,7 +43,7 @@ def integrated_risk_pred(humans, data_path, start, current_day, all_possible_sym
         log_path = f'{os.path.dirname(data_path)}/daily_outputs/{current_day}/{human.name[6:]}/'
 
         all_params.append({"start": start, "current_day": current_day,
-                           "all_possible_symptoms": all_possible_symptoms, "human": human.__getstate__(),
+                           "all_possible_symptoms": all_possible_symptoms, "human": human.get_optimized_state(),
                            "COLLECT_TRAINING_DATA": config.COLLECT_TRAINING_DATA, "log_path": log_path, "risk_model": config.RISK_MODEL})
         human.uid = update_uid(human.uid, human.rng)
 

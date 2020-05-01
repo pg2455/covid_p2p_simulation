@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from collections import deque
+import warnings
 
+import frozen.helper
 from frozen.clusters import Clusters
 from frozen.utils import create_new_uid, Message, UpdateMessage, encode_message, encode_update_message
 
@@ -41,6 +43,50 @@ class Visits(object):
 
 
 class Human(object):
+
+    _OPTIMIZED_STATE = {
+        # Static fields
+        'name',
+        'age',
+        # TODO: Should be reformatted to int timestamp
+        'sex',
+        'obs_age',
+        # TODO: Should be reformatted to int timestamp
+        'obs_sex',
+        # TODO: Should be reformatted to multihot
+        'preexisting_conditions',
+        # TODO: Should be reformatted to multihot
+        'obs_preexisting_conditions',
+
+        # Medical fields
+        'infectiousnesses',
+        'infection_timestamp',
+        # TODO: Should be reformatted to int timestamp
+        'recovered_timestamp',
+        # TODO: Should be reformatted to int timestamp
+        'test_time',
+        # TODO: Should be reformatted to multihot
+        'all_symptoms',
+        # TODO: Should be reformatted to multihot
+        'all_reported_symptoms',
+
+        # Risk fields
+        'risk',
+        'clusters',
+        'messages',
+        'exposure_message',
+        'update_messages',
+        'carefulness',
+        'has_app',
+
+        # Misc fields
+        # TODO: Should replaced by a light rng
+        'rng'
+    }
+
+    _ALL_POSSIBLE_SYMPTOMS = [k
+                              for k, v in sorted(list(frozen.helper.SYMPTOMS_META.items()),
+                                                 key=lambda item: item[1])]
 
     def __init__(self, env, city, name, age, rng, infection_timestamp, household, workplace, profession, rho=0.3, gamma=0.21, symptoms=[],
                  test_results=None):
@@ -1014,7 +1060,41 @@ class Human(object):
         visited_locs[loc] += 1
         return loc
 
+    def get_optimized_state(self):
+        # Copy the object's state from self.__dict__ which contains
+        # all our instance attributes. Always use the dict.copy()
+        # method to avoid modifying the original state.
+        state = self.__dict__.copy()
+        # Remove the unpicklable entries.
+        if state.get("env"):
+            for field in list(state.keys()):
+                if field not in Human._OPTIMIZED_STATE:
+                    del state[field]
+
+            state['messages'] = [encode_message(message) for message in self.contact_book.messages if
+                                 message.day == self.contact_book.messages[-1].day]
+            state['update_messages'] = [encode_update_message(update_message) for update_message in
+                                        self.contact_book.update_messages if
+                                        update_message.day == self.contact_book.update_messages[-1].day]
+
+        state["all_symptoms"] = \
+            frozen.helper.symptoms_to_np(self.all_symptoms,
+                                         self._ALL_POSSIBLE_SYMPTOMS)
+
+        state["all_reported_symptoms"] = \
+            frozen.helper.symptoms_to_np(self.all_reported_symptoms,
+                                         self._ALL_POSSIBLE_SYMPTOMS)
+
+        state["preexisting_conditions"] = \
+            frozen.helper.conditions_to_np(self.preexisting_conditions)
+
+        state["obs_preexisting_conditions"] = \
+            frozen.helper.conditions_to_np(self.obs_preexisting_conditions)
+
+        return state
+
     def __getstate__(self):
+        warnings.warn("Deprecated in favor of an optimized state dict", DeprecationWarning)
         # Copy the object's state from self.__dict__ which contains
         # all our instance attributes. Always use the dict.copy()
         # method to avoid modifying the original state.
@@ -1063,11 +1143,15 @@ class Human(object):
 
     def cur_message(self, day):
         """creates the current message for this user"""
-        message = Message(self.uid, self.risk_level, day, self.name, self.has_app)
+        name_split = self.name.split(':')
+        is_human, id = name_split[0] == 'human', name_split[1]
+        message = Message(self.uid, self.risk_level, day, is_human, id, self.has_app)
         return message
 
     def cur_message_risk_update(self, day, old_uid, old_risk, sent_at):
-        return UpdateMessage(old_uid, self.risk_level, old_risk, day, sent_at, self.name, self.has_app)
+        name_split = self.name.split(':')
+        is_human, id = name_split[0] == 'human', name_split[1]
+        return UpdateMessage(old_uid, self.risk_level, old_risk, day, sent_at, is_human, id, self.has_app)
 
     def symptoms_at_time(self, now, symptoms):
         if not symptoms:
