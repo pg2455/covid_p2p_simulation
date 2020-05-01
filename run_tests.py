@@ -17,7 +17,7 @@ def start_inference_server(root_dir=None):
     working_dir = os.path.join(root_dir, "covid_p2p_risk_prediction")
     # TODO: use mila-iqia once satyaog's branch gets merged
     subprocess.run(
-        f"git clone -binference-server --depth=1 "
+        f"git clone -boptimize_serialized_messages --depth=1 "
         f"https://github.com/satyaog/covid_p2p_risk_prediction.git {working_dir}".split(),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
