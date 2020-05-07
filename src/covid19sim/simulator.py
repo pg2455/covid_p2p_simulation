@@ -467,7 +467,7 @@ class Human(object):
         self.recovery_days = self.infectiousness_onset_days + self.viral_load_recovered
 
         self.covid_progression = _get_covid_progression(self.initial_viral_load, self.viral_load_plateau_start, self.viral_load_plateau_end,
-                                        self.viral_load_recovered, age=self.age, incubation_days=self.incubation_days,
+                                        self.viral_load_recovered, age=self.age, self.infectiousness_onset_days, incubation_days=self.incubation_days,
                                         really_sick=self.can_get_really_sick, extremely_sick=self.can_get_extremely_sick,
                                         rng=self.rng, preexisting_conditions=self.preexisting_conditions, carefulness=self.carefulness)
 

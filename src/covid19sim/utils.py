@@ -52,8 +52,8 @@ Attributes
         A probability of `-1` is assigned when it is handled entirely in the code
 '''
 
-SYMPTOMS_CONTEXTS = {'covid': {0: 'covid_pre_plateau', 1: 'covid_plateau_1', 2: 'covid_plateau_2',
-                               3: 'covid_post_plateau_1', 4: 'covid_post_plateau_2'},
+SYMPTOMS_CONTEXTS = {'covid': {0: 'covid_incubation_w_symptoms', 1: 'covid_plateau_1', 2: 'covid_plateau_2',
+                               3: 'covid_recovery_plateau_1', 4: 'covid_recovery_plateau_2'},
                      'cold': {0: 'cold', 1: 'cold_last_day'},
                      'flu': {0: 'flu_first_day', 1: 'flu', 2: 'flu_last_day'}}
 
@@ -63,11 +63,11 @@ SYMPTOMS = OrderedDict([
     # level needs to be first
     (
         'mild',
-        SymptomProbability('mild', 1, {'covid_pre_plateau': -1,
+        SymptomProbability('mild', 1, {'covid_incubation_w_symptoms': -1,
                                        'covid_plateau_1': -1,
                                        'covid_plateau_2': -1,
-                                       'covid_post_plateau_1': -1,
-                                       'covid_post_plateau_2': -1,
+                                       'covid_recovery_plateau_1': -1,
+                                       'covid_recovery_plateau_2': -1,
                                        'cold': -1,
                                        'cold_last_day': 1.0,
                                        'flu_first_day': 1.0,
@@ -76,11 +76,11 @@ SYMPTOMS = OrderedDict([
     ),
     (
         'moderate',
-        SymptomProbability('moderate', 0, {'covid_pre_plateau': -1,
+        SymptomProbability('moderate', 0, {'covid_incubation_w_symptoms': -1,
                                            'covid_plateau_1': -1,
                                            'covid_plateau_2': -1,
-                                           'covid_post_plateau_1': -1,
-                                           'covid_post_plateau_2': -1,
+                                           'covid_recovery_plateau_1': -1,
+                                           'covid_recovery_plateau_2': -1,
                                            'cold': -1,
                                            'cold_last_day': 0.0,
                                            'flu_first_day': 0.0,
@@ -89,30 +89,30 @@ SYMPTOMS = OrderedDict([
     ),
     (
         'severe',
-        SymptomProbability('severe', 2, {'covid_pre_plateau': 0.0,
+        SymptomProbability('severe', 2, {'covid_incubation_w_symptoms': 0.0,
                                          'covid_plateau_1': -1,
                                          'covid_plateau_2': -1,
-                                         'covid_post_plateau_1': -1,
-                                         'covid_post_plateau_2': 0.0})
+                                         'covid_recovery_plateau_1': -1,
+                                         'covid_recovery_plateau_2': 0.0})
     ),
     (
         'extremely-severe',
-        SymptomProbability('extremely-severe', 3, {'covid_pre_plateau': 0.0,
+        SymptomProbability('extremely-severe', 3, {'covid_incubation_w_symptoms': 0.0,
                                                    'covid_plateau_1': -1,
                                                    'covid_plateau_2': -1,
-                                                   'covid_post_plateau_1': 0.0,
-                                                   'covid_post_plateau_2': 0.0})
+                                                   'covid_recovery_plateau_1': 0.0,
+                                                   'covid_recovery_plateau_2': 0.0})
     ),
 
     # Symptoms
 
     (
         'fever',
-        SymptomProbability('fever', 4, {'covid_pre_plateau': 0.2,
+        SymptomProbability('fever', 4, {'covid_incubation_w_symptoms': 0.2,
                                         'covid_plateau_1': 0.3,
                                         'covid_plateau_2': 0.8,
-                                        'covid_post_plateau_1': 0.0,
-                                        'covid_post_plateau_2': 0.0,
+                                        'covid_recovery_plateau_1': 0.0,
+                                        'covid_recovery_plateau_2': 0.0,
                                         'flu_first_day': 0.7,
                                         'flu': 0.7,
                                         'flu_last_day': 0.3})
@@ -121,20 +121,20 @@ SYMPTOMS = OrderedDict([
     # this position
     (
         'chills',
-        SymptomProbability('chills', 5, {'covid_pre_plateau': 0.8,
+        SymptomProbability('chills', 5, {'covid_incubation_w_symptoms': 0.8,
                                          'covid_plateau_1': 0.5,
                                          'covid_plateau_2': 0.5,
-                                         'covid_post_plateau_1': 0.0,
-                                         'covid_post_plateau_2': 0.0})
+                                         'covid_recovery_plateau_1': 0.0,
+                                         'covid_recovery_plateau_2': 0.0})
     ),
 
     (
         'gastro',
-        SymptomProbability('gastro', 6, {'covid_pre_plateau': -1,
+        SymptomProbability('gastro', 6, {'covid_incubation_w_symptoms': -1,
                                           'covid_plateau_1': -1,
                                           'covid_plateau_2': -1,
-                                          'covid_post_plateau_1': -1,
-                                          'covid_post_plateau_2': -1,
+                                          'covid_recovery_plateau_1': -1,
+                                          'covid_recovery_plateau_2': -1,
                                           'flu_first_day': 0.7,
                                           'flu': 0.7,
                                           'flu_last_day': 0.2})
@@ -143,11 +143,11 @@ SYMPTOMS = OrderedDict([
     # this position
     (
         'diarrhea',
-        SymptomProbability('diarrhea', 7, {'covid_pre_plateau': 0.9,
+        SymptomProbability('diarrhea', 7, {'covid_incubation_w_symptoms': 0.9,
                                            'covid_plateau_1': 0.9,
                                            'covid_plateau_2': 0.9,
-                                           'covid_post_plateau_1': 0.9,
-                                           'covid_post_plateau_2': 0.9,
+                                           'covid_recovery_plateau_1': 0.9,
+                                           'covid_recovery_plateau_2': 0.9,
                                            'flu_first_day': 0.5,
                                            'flu': 0.5,
                                            'flu_last_day': 0.5})
@@ -156,11 +156,11 @@ SYMPTOMS = OrderedDict([
     # before this position
     (
         'nausea_vomiting',
-        SymptomProbability('nausea_vomiting', 8, {'covid_pre_plateau': 0.7,
+        SymptomProbability('nausea_vomiting', 8, {'covid_incubation_w_symptoms': 0.7,
                                                   'covid_plateau_1': 0.7,
                                                   'covid_plateau_2': 0.7,
-                                                  'covid_post_plateau_1': 0.7,
-                                                  'covid_post_plateau_2': 0.7,
+                                                  'covid_recovery_plateau_1': 0.7,
+                                                  'covid_recovery_plateau_2': 0.7,
                                                   'flu_first_day': 0.5,
                                                   'flu': 0.5,
                                                   'flu_last_day': 0.25})
@@ -171,11 +171,11 @@ SYMPTOMS = OrderedDict([
     # position
     (
         'fatigue',
-        SymptomProbability('fatigue', 9, {'covid_pre_plateau': -1,
+        SymptomProbability('fatigue', 9, {'covid_incubation_w_symptoms': -1,
                                           'covid_plateau_1': -1,
                                           'covid_plateau_2': -1,
-                                          'covid_post_plateau_1': -1,
-                                          'covid_post_plateau_2': -1,
+                                          'covid_recovery_plateau_1': -1,
+                                          'covid_recovery_plateau_2': -1,
                                           'cold': 0.8,
                                           'cold_last_day': 0.8,
                                           'flu_first_day': 0.4,
@@ -184,46 +184,46 @@ SYMPTOMS = OrderedDict([
     ),
     (
         'unusual',
-        SymptomProbability('unusual', 10, {'covid_pre_plateau': 0.2,
+        SymptomProbability('unusual', 10, {'covid_incubation_w_symptoms': 0.2,
                                            'covid_plateau_1': 0.3,
                                            'covid_plateau_2': 0.5,
-                                           'covid_post_plateau_1': 0.5,
-                                           'covid_post_plateau_2': 0.5})
+                                           'covid_recovery_plateau_1': 0.5,
+                                           'covid_recovery_plateau_2': 0.5})
     ),
     (
         'hard_time_waking_up',
-        SymptomProbability('hard_time_waking_up', 11, {'covid_pre_plateau': 0.6,
+        SymptomProbability('hard_time_waking_up', 11, {'covid_incubation_w_symptoms': 0.6,
                                                        'covid_plateau_1': 0.6,
                                                        'covid_plateau_2': 0.6,
-                                                       'covid_post_plateau_1': 0.6,
-                                                       'covid_post_plateau_2': 0.6,
+                                                       'covid_recovery_plateau_1': 0.6,
+                                                       'covid_recovery_plateau_2': 0.6,
                                                        'flu_first_day': 0.3,
                                                        'flu': 0.5,
                                                        'flu_last_day': 0.4})
     ),
     (
         'headache',
-        SymptomProbability('headache', 12, {'covid_pre_plateau': 0.5,
+        SymptomProbability('headache', 12, {'covid_incubation_w_symptoms': 0.5,
                                             'covid_plateau_1': 0.5,
                                             'covid_plateau_2': 0.5,
-                                            'covid_post_plateau_1': 0.5,
-                                            'covid_post_plateau_2': 0.5})
+                                            'covid_recovery_plateau_1': 0.5,
+                                            'covid_recovery_plateau_2': 0.5})
     ),
     (
         'confused',
-        SymptomProbability('confused', 13, {'covid_pre_plateau': 0.1,
+        SymptomProbability('confused', 13, {'covid_incubation_w_symptoms': 0.1,
                                             'covid_plateau_1': 0.1,
                                             'covid_plateau_2': 0.1,
-                                            'covid_post_plateau_1': 0.1,
-                                            'covid_post_plateau_2': 0.1})
+                                            'covid_recovery_plateau_1': 0.1,
+                                            'covid_recovery_plateau_2': 0.1})
     ),
     (
         'lost_consciousness',
-        SymptomProbability('lost_consciousness', 14, {'covid_pre_plateau': 0.1,
+        SymptomProbability('lost_consciousness', 14, {'covid_incubation_w_symptoms': 0.1,
                                                       'covid_plateau_1': 0.1,
                                                       'covid_plateau_2': 0.1,
-                                                      'covid_post_plateau_1': 0.1,
-                                                      'covid_post_plateau_2': 0.1})
+                                                      'covid_recovery_plateau_1': 0.1,
+                                                      'covid_recovery_plateau_2': 0.1})
     ),
 
     # Respiratory symptoms
@@ -231,72 +231,72 @@ SYMPTOMS = OrderedDict([
     # inserted before them
     (
         'trouble_breathing',
-        SymptomProbability('trouble_breathing', 15, {'covid_pre_plateau': -1,
+        SymptomProbability('trouble_breathing', 15, {'covid_incubation_w_symptoms': -1,
                                                      'covid_plateau_1': -1,
                                                      'covid_plateau_2': -1,
-                                                     'covid_post_plateau_1': -1,
-                                                     'covid_post_plateau_2': -1,
+                                                     'covid_recovery_plateau_1': -1,
+                                                     'covid_recovery_plateau_2': -1,
                                                      'cold': 0.1,
                                                      'cold_last_day': 0.0})
     ),
     (
         'sneezing',
-        SymptomProbability('sneezing', 16, {'covid_pre_plateau': 0.2,
+        SymptomProbability('sneezing', 16, {'covid_incubation_w_symptoms': 0.2,
                                             'covid_plateau_1': 0.3,
                                             'covid_plateau_2': 0.3,
-                                            'covid_post_plateau_1': 0.3,
-                                            'covid_post_plateau_2': 0.3,
+                                            'covid_recovery_plateau_1': 0.3,
+                                            'covid_recovery_plateau_2': 0.3,
                                             'cold': 0.4,
                                             'cold_last_day': 0.0})
     ),
     (
         'cough',
-        SymptomProbability('cough', 17, {'covid_pre_plateau': 0.6,
+        SymptomProbability('cough', 17, {'covid_incubation_w_symptoms': 0.6,
                                          'covid_plateau_1': 0.9,
                                          'covid_plateau_2': 0.9,
-                                         'covid_post_plateau_1': 0.9,
-                                         'covid_post_plateau_2': 0.9,
+                                         'covid_recovery_plateau_1': 0.9,
+                                         'covid_recovery_plateau_2': 0.9,
                                          'cold': 0.8,
                                          'cold_last_day': 0.8})
     ),
     (
         'runny_nose',
-        SymptomProbability('runny_nose', 18, {'covid_pre_plateau': 0.1,
+        SymptomProbability('runny_nose', 18, {'covid_incubation_w_symptoms': 0.1,
                                               'covid_plateau_1': 0.2,
                                               'covid_plateau_2': 0.2,
-                                              'covid_post_plateau_1': 0.2,
-                                              'covid_post_plateau_2': 0.2,
+                                              'covid_recovery_plateau_1': 0.2,
+                                              'covid_recovery_plateau_2': 0.2,
                                               'cold': 0.8,
                                               'cold_last_day': 0.8})
     ),
     (
         'sore_throat',
-        SymptomProbability('sore_throat', 20, {'covid_pre_plateau': 0.5,
+        SymptomProbability('sore_throat', 20, {'covid_incubation_w_symptoms': 0.5,
                                                'covid_plateau_1': 0.8,
                                                'covid_plateau_2': 0.8,
-                                               'covid_post_plateau_1': 0.8,
-                                               'covid_post_plateau_2': 0.8,
+                                               'covid_recovery_plateau_1': 0.8,
+                                               'covid_recovery_plateau_2': 0.8,
                                                'cold': 0.0,
                                                'cold_last_day': 0.6})
     ),
     (
         'severe_chest_pain',
-        SymptomProbability('severe_chest_pain', 21, {'covid_pre_plateau': 0.4,
+        SymptomProbability('severe_chest_pain', 21, {'covid_incubation_w_symptoms': 0.4,
                                                      'covid_plateau_1': 0.5,
                                                      'covid_plateau_2': 0.5,
-                                                     'covid_post_plateau_1': 0.15,
-                                                     'covid_post_plateau_2': 0.15})
+                                                     'covid_recovery_plateau_1': 0.15,
+                                                     'covid_recovery_plateau_2': 0.15})
     ),
 
     # 'trouble_breathing' is a dependency of any '*_trouble_breathing' so it
     # needs to be inserted before this position
     (
         'light_trouble_breathing',
-        SymptomProbability('light_trouble_breathing', 24, {'covid_pre_plateau': -1,
-                                                          'covid_plateau_1': -1,
-                                                          'covid_plateau_2': -1,
-                                                          'covid_post_plateau_1': -1,
-                                                          'covid_post_plateau_2': -1})
+        SymptomProbability('light_trouble_breathing', 24, {'covid_incubation_w_symptoms': -1,
+                                                           'covid_plateau_1': -1,
+                                                           'covid_plateau_2': -1,
+                                                           'covid_recovery_plateau_1': -1,
+                                                           'covid_recovery_plateau_2': -1})
     ),
     (
         'mild_trouble_breathing',
@@ -304,28 +304,28 @@ SYMPTOMS = OrderedDict([
     ),
     (
         'moderate_trouble_breathing',
-        SymptomProbability('moderate_trouble_breathing', 25, {'covid_pre_plateau': -1,
+        SymptomProbability('moderate_trouble_breathing', 25, {'covid_incubation_w_symptoms': -1,
                                                               'covid_plateau_1': -1,
                                                               'covid_plateau_2': -1,
-                                                              'covid_post_plateau_1': -1,
-                                                              'covid_post_plateau_2': -1})
+                                                              'covid_recovery_plateau_1': -1,
+                                                              'covid_recovery_plateau_2': -1})
     ),
     (
         'heavy_trouble_breathing',
-        SymptomProbability('heavy_trouble_breathing', 26, {'covid_pre_plateau': 0,
+        SymptomProbability('heavy_trouble_breathing', 26, {'covid_incubation_w_symptoms': 0,
                                                            'covid_plateau_1': -1,
                                                            'covid_plateau_2': -1,
-                                                           'covid_post_plateau_1': -1,
-                                                           'covid_post_plateau_2': -1})
+                                                           'covid_recovery_plateau_1': -1,
+                                                           'covid_recovery_plateau_2': -1})
     ),
 
     (
         'loss_of_taste',
-        SymptomProbability('loss_of_taste', 22, {'covid_pre_plateau': 0.25,
+        SymptomProbability('loss_of_taste', 22, {'covid_incubation_w_symptoms': 0.25,
                                                  'covid_plateau_1': 0.3,
                                                  'covid_plateau_2': 0.35,
-                                                 'covid_post_plateau_1': 0.0,
-                                                 'covid_post_plateau_2': 0.0,
+                                                 'covid_recovery_plateau_1': 0.0,
+                                                 'covid_recovery_plateau_2': 0.0,
                                                  'cold': 0.2,
                                                  'cold_last_day': 0.0})
     ),
@@ -548,18 +548,51 @@ def _get_get_really_sick(age, sex, rng):
 
 # 2D Array of symptoms; first axis is days after exposure (infection), second is an array of symptoms
 def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_load_plateau_end,
-                           viral_load_recovered, age, incubation_days, really_sick, extremely_sick,
+                           viral_load_recovered, age, infectiousness_onset_days, incubation_days, really_sick, extremely_sick,
                            rng, preexisting_conditions, carefulness):
     symptoms_contexts = SYMPTOMS_CONTEXTS['covid']
     progression = []
-    symptoms_per_phase = [[] for i in range(len(symptoms_contexts))]
 
-    # Before onset of symptoms (incubation)
+    # Before onset of infectiousness (phase 0)
+    infectiousness_onset_duration = math.ceil(infectiousness_onset_days)
+
+    # Incubation (phase 1)
+    incubation_duration = math.ceil(incubation_days)
+    # Incubation with symptoms (end of phase 1)
+    incubation_w_symptoms_duration = math.ceil(incubation_duration - incubation_days)
+    # Incubation without symptoms (phase 1)
+    incubation_wo_symptoms_duration = incubation_duration - incubation_w_symptoms_duration
+
+    # Symptoms plateau (phase 2-3)
+    plateau_duration = round(viral_load_plateau_end - viral_load_plateau_start)
+    # Symptoms plateau, part 1 (phase 2)
+    plateau_1_duration = plateau_duration // 2
+    # Symptoms plateau, part 2 (phase 3)
+    plateau_2_duration = plateau_duration - plateau_1_duration
+
+    # Recovery (phase 4-5)
+    recovery_duration = round(viral_load_recovered - viral_load_plateau_end)
+    # Recovery, part 1 (phase 4)
+    recovery_1_duration = incubation_w_symptoms_duration
+    # Recovery, part 2 (phase 5)
+    recovery_2_duration = recovery_duration - recovery_1_duration
+
+    # Create symptoms per phase arrays
+    symptoms_per_phase = [[] for _ in range(len(symptoms_contexts))]
+
+    # Pre-fill the progression by referencing the symptoms per phase arrays
+    for duration, symptoms in zip((incubation_w_symptoms_duration, plateau_1_duration, plateau_2_duration,
+                                   recovery_1_duration, recovery_2_duration),
+                                  symptoms_per_phase):
+        for day in range(duration):
+            progression.append(symptoms)
+
+    # Before onset of symptoms (incubation, phase 0-1)
     # ====================================================
-    for day in range(math.ceil(incubation_days)):
-        progression.append([])
+    for day in range(infectiousness_onset_duration + incubation_wo_symptoms_duration):
+        progression.insert(0, [])
 
-    # Before the symptom's plateau
+    # Start of symptoms (end of phase 1)
     # ====================================================
     phase_i = 0
     phase = symptoms_contexts[phase_i]
@@ -632,7 +665,7 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         symptoms_per_phase[phase_i].append('moderate_trouble_breathing')
 
 
-    # During the plateau of symptoms Part 1
+    # During the plateau of symptoms, part 1 (phase 2)
     # ====================================================
     phase_i = 1
     phase = symptoms_contexts[phase_i]
@@ -711,7 +744,7 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         symptoms_per_phase[phase_i].append('heavy_trouble_breathing')
 
 
-    # During the symptoms plateau Part 2 (worst part of the disease)
+    # During the plateau of symptoms, part 2 (phase 3, worst part of the disease)
     # ====================================================
     phase_i = 2
     phase = symptoms_contexts[phase_i]
@@ -790,7 +823,7 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         symptoms_per_phase[phase_i].append('loss_of_taste')
 
 
-    # After the plateau (recovery part 1)
+    # After the plateau, recovery part 1 (phase 4)
     # ====================================================
     phase_i = 3
     phase = symptoms_contexts[phase_i]
@@ -855,7 +888,7 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         symptoms_per_phase[phase_i].append('heavy_trouble_breathing')
 
 
-    # After the plateau (recovery part 2)
+    # After the plateau, recovery part 2 (phase 5)
     # ====================================================
     phase_i = 4
     phase = symptoms_contexts[phase_i]
@@ -916,22 +949,6 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
     if ('severe' in symptoms_per_phase[phase_i] or 'extremely-severe' in symptoms_per_phase[phase_i]) and \
             'trouble_breathing' in symptoms_per_phase[phase_i]:
         symptoms_per_phase[phase_i].append('heavy_trouble_breathing')
-
-    symptom_onset_delay = round(viral_load_plateau_start - incubation_days)
-    plateau_duration = round(viral_load_plateau_end - viral_load_plateau_start)
-
-    # same delay in symptom plateau as there was in symptom onset
-    pre_plateau_duration = symptom_onset_delay
-    plateau_1_duration = plateau_duration // 2
-    plateau_2_duration = plateau_duration - plateau_1_duration
-    post_plateau_1_duration = symptom_onset_delay
-    post_plateau_2_duration = round(viral_load_recovered - viral_load_plateau_end - 2)
-
-    for duration, symptoms in zip((pre_plateau_duration, plateau_1_duration, plateau_2_duration,
-                                   post_plateau_1_duration, post_plateau_2_duration),
-                                  symptoms_per_phase):
-        for day in range(duration):
-            progression.append(symptoms)
 
     return progression
 
