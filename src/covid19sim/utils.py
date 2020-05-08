@@ -553,24 +553,24 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
     symptoms_contexts = SYMPTOMS_CONTEXTS['covid']
     progression = []
 
-    # Before onset of infectiousness (phase 0)
-    infectiousness_onset_duration = math.ceil(infectiousness_onset_days)
-
-    # Incubation (phase 1)
+    # Incubation (phases 0 and 1)
+    # ====================
     incubation_duration = math.ceil(incubation_days)
-    # Incubation with symptoms (end of phase 1)
-    incubation_w_symptoms_duration = math.ceil(incubation_duration - incubation_days)
-    # Incubation without symptoms (phase 1)
-    incubation_wo_symptoms_duration = incubation_duration - incubation_w_symptoms_duration
+    # Incubation (phase 0), before onset of symptoms
+    incubation_wo_symptoms_duration = math.ceil(infectiousness_onset_days + 1 - (age-50)/100)  # People are infectious before symptoms, but more likely to get symptoms earlier if older
+    # Incubation (phase 1) onset of symptoms
+    incubation_w_symptoms_duration = math.ceil(incubation_duration - incubation_wo_symptoms_duration)
 
-    # Symptoms plateau (phase 2-3)
+    # Symptoms Peak (phases 2 and 3)
+    # ====================
     plateau_duration = round(viral_load_plateau_end - viral_load_plateau_start)
-    # Symptoms plateau, part 1 (phase 2)
+    # Viral load plateau (phase 2), symptoms set in
     plateau_1_duration = plateau_duration // 2
-    # Symptoms plateau, part 2 (phase 3)
+    # Viral load plateau (phase 3), peak/worst symptoms
     plateau_2_duration = plateau_duration - plateau_1_duration
 
-    # Recovery (phase 4-5)
+    # Recovery (phases 4 and 5)
+    # ====================
     recovery_duration = round(viral_load_recovered - viral_load_plateau_end)
     # Recovery, part 1 (phase 4)
     recovery_1_duration = incubation_w_symptoms_duration
@@ -587,12 +587,12 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         for day in range(duration):
             progression.append(symptoms)
 
-    # Before onset of symptoms (incubation, phase 0-1)
+    # Before onset of symptoms (incubation phase 0)
     # ====================================================
-    for day in range(infectiousness_onset_duration + incubation_wo_symptoms_duration):
+    for day in range(incubation_wo_symptoms_duration):
         progression.insert(0, [])
 
-    # Start of symptoms (end of phase 1)
+    # Start of symptoms (phase 1)
     # ====================================================
     phase_i = 0
     phase = symptoms_contexts[phase_i]
@@ -665,7 +665,7 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         symptoms_per_phase[phase_i].append('moderate_trouble_breathing')
 
 
-    # During the plateau of symptoms, part 1 (phase 2)
+    # Beginning of plateau of viral load, symptoms set in (phase 2)
     # ====================================================
     phase_i = 1
     phase = symptoms_contexts[phase_i]
@@ -744,7 +744,7 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         symptoms_per_phase[phase_i].append('heavy_trouble_breathing')
 
 
-    # During the plateau of symptoms, part 2 (phase 3, worst part of the disease)
+    # During the plateau of viral load (phase 3), worst part of the disease / peak symptoms
     # ====================================================
     phase_i = 2
     phase = symptoms_contexts[phase_i]
@@ -823,7 +823,7 @@ def _get_covid_progression(initial_viral_load, viral_load_plateau_start, viral_l
         symptoms_per_phase[phase_i].append('loss_of_taste')
 
 
-    # After the plateau, recovery part 1 (phase 4)
+    # After the plateau, recovery begins (e.g. fever breaks) (phase 4)
     # ====================================================
     phase_i = 3
     phase = symptoms_contexts[phase_i]
