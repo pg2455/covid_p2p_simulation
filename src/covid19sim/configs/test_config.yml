@@ -18,7 +18,7 @@ USE_ORACLE: False
 
 # PATHS
 CLUSTER_PATH : "output/clusters.json"
-TRANSFORMER_EXP_PATH : "../src/covid19sim/CTT-SHIPMENT-0"
+TRANSFORMER_EXP_PATH : "CTT-SHIPMENT-0"
 
 # Inference & Training
 INFECTIOUSNESS_N_DAYS_HISTORY : 14

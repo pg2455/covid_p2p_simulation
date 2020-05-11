@@ -16,8 +16,6 @@ class ModelsTest(unittest.TestCase):
         """
             run one simulation and ensure json files are correctly populated and most of the users have activity
         """
-        # Load the experimental configuration
-        ExpConfig.load_config(os.path.join(os.path.dirname(__file__), "../src/covid19sim/configs/test_config.yml"))
 
         with TemporaryDirectory() as preprocess_d:
             n_people = 100
@@ -241,3 +239,9 @@ class ModelsTest(unittest.TestCase):
             self.assertGreaterEqual(has_recovery_day, n_people * 0.2)
             self.assertGreaterEqual(exposure_encounter_cnt, n_people)
             self.assertGreaterEqual(infectiousness, n_people)
+
+
+if __name__ == "__main__":
+    # Load the experimental configuration
+    ExpConfig.load_config(os.path.join(os.path.dirname(__file__), "../src/covid19sim/configs/test_config.yml"))
+    unittest.main()
