@@ -59,13 +59,12 @@ python run.py test
 
 ```
 @click.option('--n_people', help='population of the city', type=int, default=100)
+@click.option('--init_percent_sick', help='initial percentage of sick people', type=float, default=0.01)
 @click.option('--simulation_days', help='number of days to run the simulation for', type=int, default=30)
-@click.option('--out_chunk_size', help='number of events per dump in outfile', type=int, default=2500, required=False)
+@click.option('--out_chunk_size', help='minimum number of events per dump in outfile', type=int, default=1, required=False)
 @click.option('--outdir', help='the directory to write data to', type=str, default="output", required=False)
 @click.option('--seed', help='seed for the process', type=int, default=0)
-@click.option('--n_jobs', help='number of parallel procs to query the risk servers with', type=int, default=1)
-@click.option('--port', help='which port should we look for inference servers on', type=int, default=6688)
-@click.option('--config', help='which experiment config would we like to run with', type=str, default="configs/naive_config.yml")
+@click.option('--config', help='where is the configuration file for this experiment', type=str, default="src/covid19sim/configs/naive_config.yml")
 ```
 
 ### Accessing Simulation Data

@@ -23,15 +23,14 @@ class ModelsTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             n_people = 10
             n_days = 20
-            monitors, _ = simulate(
+            monitors, _, _ = simulate(
                 n_people=n_people,
                 start_time=datetime.datetime(2020, 2, 28, 0, 0),
                 simulation_days=n_days,
                 init_percent_sick=0.1,
                 outfile=os.path.join(d, "output"),
                 out_chunk_size=1,
-                seed=0, n_jobs=12,
-                port=6688
+                seed=0,
             )
             days_output = glob.glob(f"{d}/daily_outputs/*/")
             days_output.sort(key=lambda p: int(p.split(os.path.sep)[-2]))

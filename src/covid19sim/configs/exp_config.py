@@ -10,6 +10,7 @@ class ExpConfig(object):
     [summary]
     """
     config = None
+    config_path = None
 
     @classmethod
     def __getitem__(cls, key):
@@ -69,3 +70,4 @@ class ExpConfig(object):
         """
         with open(path) as file:
             ExpConfig.config = yaml.load(file, Loader=yaml.FullLoader)
+        ExpConfig.config_path = path
