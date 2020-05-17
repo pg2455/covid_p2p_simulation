@@ -1,5 +1,8 @@
 # COVID-19 Spread Simulator for Tracing App
-# **NOTE: This repository is deprecated. It is handed off to COVI-Canada, and further work is being done in that repository.**
+# **NOTE: This repository is deprecated. It is handed off to [COVI-Canada](!https://github.com/Covi-Canada), and further work is being done in that repository.**
+
+**This was the original repository for the simulator. The attempt to transfer it to COVI-Canada lead to the loss of information about various forks, which will be public now without any parent. After realising this mistake, I have made this repository public with the note above. ** 
+
 
 This is a sub-project of [Peer-to-Peer AI Tracing App](https://mila.quebec/en/peer-to-peer-ai-tracing-of-covid-19/) delegated by [Prof. Yoshua Bengio](https://yoshuabengio.org/). Read more about the app in Prof. Bengio's [blog post](https://yoshuabengio.org/2020/03/23/peer-to-peer-ai-tracing-of-covid-19/).
 
@@ -75,13 +78,6 @@ monitors = run_simu(n_stores=100, n_parks=50, n_people=100, n_misc=100, init_per
 ```
 
 `data` is a `list` of `dict`.
-
-## Base SEIR plots
-Following will require `cufflinks` and `plotly`.
-```
-python run.py base
-```
-It will open a browser window with the plot of [SEIR curves](https://www.idmod.org/docs/hiv/model-seir.html#seir-and-seirs-models).
 
 ## Semantics of code
 `Human` class builds people, and `Location` class builds stores, parks, workplaces, households, and non-essential establishments.
