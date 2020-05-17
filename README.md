@@ -1,12 +1,12 @@
 # COVID-19 Spread Simulator for Tracing App
-# **NOTE: This repository is deprecated. It is handed off to [COVI-Canada](!https://github.com/Covi-Canada), and further work is being done in that repository.**
+# **NOTE: This repository is deprecated. It is handed off to [COVI-Canada](https://github.com/Covi-Canada), and further work is being done in that repository.**
 
-_**This was the original repository for the simulator. The attempt to transfer it to COVI-Canada lead to the loss of various forks, all of which will have no parent now. After realising this mistake, I have made this repository public with the deprecation note above.**_
+_**This was the original repository for the simulator. The attempt to transfer it to [COVI-Canada](https://github.com/Covi-Canada) lead to the loss of various forks, all of which will have no parent now. After realising this mistake, I have made this repository public with the deprecation note above.**_
 
 
 This is a sub-project of [Peer-to-Peer AI Tracing App](https://mila.quebec/en/peer-to-peer-ai-tracing-of-covid-19/) delegated by [Prof. Yoshua Bengio](https://yoshuabengio.org/). Read more about the app in Prof. Bengio's [blog post](https://yoshuabengio.org/2020/03/23/peer-to-peer-ai-tracing-of-covid-19/).
 
-The simulator is built using [`simpy`](!https://simpy.readthedocs.io/en/latest/simpy_intro/index.html).
+The simulator is built using [`simpy`](https://simpy.readthedocs.io/en/latest/simpy_intro/index.html).
 It simulates human mobility along with infectious disease (COVID) spreading in a city, where city has houses, grocery stores, parks, workplaces, and other non-essential establishments.
 
 Human mobility simulation is based on Spatial-EPR model. More details on this model are [here](https://www.nature.com/articles/ncomms9166) and [here](https://www.nature.com/articles/nphys1760).
