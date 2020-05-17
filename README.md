@@ -1,5 +1,5 @@
 # COVID-19 Spread Simulator for Tracing App
-# NOTE: This repository is deprecated. It is handed off to COVI-Canada, and further work is being done in that repository. 
+# **NOTE: This repository is deprecated. It is handed off to COVI-Canada, and further work is being done in that repository.**
 
 This is a sub-project of [Peer-to-Peer AI Tracing App](https://mila.quebec/en/peer-to-peer-ai-tracing-of-covid-19/) delegated by [Prof. Yoshua Bengio](https://yoshuabengio.org/). Read more about the app in Prof. Bengio's [blog post](https://yoshuabengio.org/2020/03/23/peer-to-peer-ai-tracing-of-covid-19/).
 
