@@ -7,6 +7,7 @@ USE_INFERENCE_SERVER : False
 RISK_MODEL : "" # "naive"  "manual", "digital", "transformer"
 SHOULD_MODIFY_BEHAVIOR : False
 USE_ORACLE: False
+MOBILITY_SCALING_FACTOR: 1.0
 
 ## INTERVENTIONS
 INTERVENTION_DAY : -1

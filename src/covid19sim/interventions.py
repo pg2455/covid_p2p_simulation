@@ -136,7 +136,7 @@ class Stand2M(BehaviorInterventions):
         """
         # FIXME : Social distancing also has this parameter
         human._maintain_extra_distance_2m = human.maintain_extra_distance
-        human.maintain_extra_distance = 100 # cms
+        human.maintain_extra_distance = 200 # cms
 
     def revert_behavior(self, human):
         """
@@ -176,7 +176,7 @@ class WashHands(BehaviorInterventions):
             human ([type]): [description]
         """
         human._hygiene = human.hygiene
-        human.hygiene = human.rng.uniform(human.carefulness, 1)
+        human.hygiene = human.rng.uniform(human.carefulness, 3)
 
     def revert_behavior(self, human):
         """
@@ -283,7 +283,7 @@ class SocialDistancing(BehaviorInterventions):
     """
     [summary]
     """
-    DEFAULT_SOCIAL_DISTANCE = 100 # cm
+    DEFAULT_SOCIAL_DISTANCE = 200 # cm
     TIME_ENCOUNTER_REDUCTION_FACTOR = 0.5
     _RHO = 0.2
     _GAMMA = 0.5
@@ -384,11 +384,37 @@ def get_recommendations(level):
     if level == 0:
         return [WashHands()]
     if level == 1:
-        return [WashHands(), WearMask()]
+        return [WashHands(), WearMask(), Stand2M()]
     if level == 2:
-        return [WashHands(), SocialDistancing(), Stand2M(), WearMask(), 'monitor_symptoms']
+        return [WashHands(), SocialDistancing(),  WearMask(), 'monitor_symptoms']
 
     return [WashHands(), SocialDistancing(), WearMask(), 'monitor_symptoms', GetTested("recommendations"), Quarantine()]
+
+class BinaryTracing(BehaviorInterventions):
+    """
+    [summary]
+    """
+
+    def __init__(self):
+        super(BinaryTracing, self).__init__()
+
+    def modify_behavior(self, human):
+        if human.rec_level == 0:
+            recommendations = []
+        else:
+            recommendations = [WashHands(), Quarantine()]
+
+        self.revert_behavior(human)
+        for rec in recommendations:
+            if isinstance(rec, BehaviorInterventions) and human.rng.rand() < human.how_much_I_follow_recommendations:
+                rec.modify_behavior(human)
+                human.recommendations_to_follow.add(rec)
+
+    def revert_behavior(self, human):
+        for rec in human.recommendations_to_follow:
+            rec.revert_behavior(human)
+        human.recommendations_to_follow = OrderedSet()
+
 
 class RiskBasedRecommendations(BehaviorInterventions):
     """
@@ -400,9 +426,6 @@ class RiskBasedRecommendations(BehaviorInterventions):
     UPPER_RED = 15
 
     def __init__(self):
-        """
-        [summary]
-        """
         super(RiskBasedRecommendations, self).__init__()
 
     @staticmethod
@@ -428,12 +451,6 @@ class RiskBasedRecommendations(BehaviorInterventions):
             raise
 
     def modify_behavior(self, human):
-        """
-        [summary]
-
-        Args:
-            human ([type]): [description]
-        """
         recommendations = get_recommendations(human.rec_level)
         self.revert_behavior(human)
         for rec in recommendations:
@@ -442,13 +459,6 @@ class RiskBasedRecommendations(BehaviorInterventions):
                 human.recommendations_to_follow.add(rec)
 
     def revert_behavior(self, human):
-        """
-        [summary]
-
-        Args:
-            human ([type]): [description]
-        """
-        # print(f"chaging back {human}")
         for rec in human.recommendations_to_follow:
             rec.revert_behavior(human)
         human.recommendations_to_follow = OrderedSet()
@@ -512,7 +522,8 @@ class Tracing(object):
         """
         self.risk_model = risk_model
         if risk_model in ['manual', 'digital']:
-            self.intervention = Quarantine()
+            # self.intervention = Quarantine()
+            self.intervention = BinaryTracing()
         else:
             # risk based
             self.intervention = RiskBasedRecommendations()
@@ -554,7 +565,7 @@ class Tracing(object):
         Returns:
             [type]: [description]
         """
-        if not self.should_modify_behavior:
+        if not self.should_modify_behavior or (not human.has_app and self.app):
             return
 
         return self.intervention.modify_behavior(human)
@@ -782,4 +793,3 @@ def get_intervention(key, RISK_MODEL=None, TRACING_ORDER=None, TRACE_SYMPTOMS=No
         raise NotImplementedError
     else:
         raise
-

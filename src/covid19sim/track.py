@@ -1,4 +1,3 @@
-
 """
 [summary]
 """
@@ -642,6 +641,13 @@ class Tracker(object):
             if bin >= x:
                 self.contacts['location_duration'][location.location_type].extend([0 for _ in range(bin - x + 1)])
             self.contacts['location_duration'][location.location_type][bin] += 1
+
+    def compute_mobility_scaling_factor(self):
+        E = 0
+        for human in self.city.humans:
+            E += human.n_effective_contacts
+            
+        return E / len(self.city.humans) / (self.env.timestamp - self.env.initial_timestamp).days
 
     def track_encounter_events(self, human1, human2, location, distance, duration):
         """

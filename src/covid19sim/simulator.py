@@ -326,6 +326,9 @@ class Human(object):
 
         self.work_start_hour = self.rng.choice(range(7, 17), 3)
 
+        # mobility control
+        self.n_effective_contacts = 0
+
 
     def assign_household(self, location):
         """
@@ -663,7 +666,7 @@ class Human(object):
               severity_multiplier += 0.2
             if 'cough' in self.symptoms:
               severity_multiplier += 0.25
-            severity_multiplier += (1-self.hygiene)
+            # severity_multiplier += (1-self.hygiene) #TODO - P - let hygiene only affect the encounter
         return self.viral_load_for_day(timestamp) * severity_multiplier
 
     @property
@@ -950,12 +953,7 @@ class Human(object):
                 self.tracing = True
                 self.tracing_method = intervention
                 self.risk = 0
-                # initiate with basic recommendations
-                # FIXME: Check isinstance of the RiskBasedRecommendations class
-                if intervention.risk_model not in ['manual', 'digital']:
-                    intervention.modify_behavior(self)
-            else:
-                intervention.modify_behavior(self)
+            intervention.modify_behavior(self)
             self.notified = True
 
     def run(self, city):
@@ -1035,7 +1033,10 @@ class Human(object):
 
             # happens when recovered
             elif self.rest_at_home and self.how_am_I_feeling() == 1.0:
-                self.rest_at_home = False
+                if self.rng.random() < GREEN_FEELING_KNOB:
+                    self.rest_at_home = False
+                else:
+                    self.rest_at_home = True
 
             # Behavioral imperatives
             if self.is_extremely_sick:
@@ -1056,7 +1057,6 @@ class Human(object):
             # TODO (EM) These optional and erratic behaviours should be more probabalistic,
             # with probs depending on state of lockdown of city
             # Lockdown should also close a fraction of the shops
-
             elif ( hour in self.shopping_hours and
                    day in self.shopping_days and
                    self.count_shop<=self.max_shop_per_week and
@@ -1302,11 +1302,15 @@ class Human(object):
                 proximity_factor = 1
                 if INFECTION_DISTANCE_FACTOR or INFECTION_DURATION_FACTOR:
                     proximity_factor = INFECTION_DISTANCE_FACTOR * (1 - distance/INFECTION_RADIUS) + INFECTION_DURATION_FACTOR * min((t_near - INFECTION_DURATION)/INFECTION_DURATION, 1)
-                mask_efficacy = (self.mask_efficacy + h.mask_efficacy)*2
+                mask_efficacy = (self.mask_efficacy + h.mask_efficacy) * MASK_EFFICACY_FACTOR
+
+                contact_scaling_factor = self.rng.random() < ExpConfig.get("MOBILITY_SCALING_FACTOR")
+                if (self.env.timestamp - self.env.initial_timestamp).days >= ExpConfig.get("INTERVENTION_DAY"):
+                    self.n_effective_contacts += ExpConfig.get("MOBILITY_SCALING_FACTOR")
 
                 # covid transmission
                 infector, infectee = None, None
-                if self.is_infectious ^ h.is_infectious:
+                if self.is_infectious ^ h.is_infectious and contact_scaling_factor:
                     infector, infectee = self, h
                     if h.is_infectious:
                         infector, infectee = h, self
@@ -1315,10 +1319,10 @@ class Human(object):
                     p_infection = infector.infectiousness * ratio * proximity_factor
                     # FIXME: remove hygiene from severity multiplier; init hygiene = 0; use sum here instead
                     reduction_factor = CONTAGION_KNOB + sum(getattr(x, "_hygiene", 0) for x in [self, h]) + mask_efficacy
-                    p_infection *= np.exp(-reduction_factor * infector.n_infectious_contacts)
+                    reduction_factor = np.exp(-reduction_factor * infector.n_infectious_contacts)
+                    p_infection *= reduction_factor
 
                     x_human = infector.rng.random() < p_infection
-
                     if x_human and infectee.is_susceptible:
                         infectee.infection_timestamp = self.env.timestamp
                         infectee.initial_viral_load = infector.rng.random()

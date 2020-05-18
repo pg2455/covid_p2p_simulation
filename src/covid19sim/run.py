@@ -3,6 +3,8 @@ Main file to run the simulations
 """
 import click
 import os
+import pathlib
+import dill
 
 from covid19sim.frozen.helper import SYMPTOMS_META_IDMAP
 from covid19sim.simulator import Human
@@ -11,7 +13,9 @@ from covid19sim.monitors import EventMonitor, TimeMonitor, SEIRMonitor
 from covid19sim.configs.exp_config import ExpConfig
 from covid19sim.configs.constants import TICK_MINUTE
 from covid19sim.utils import extract_tracker_data, dump_tracker_data
-
+import sys
+sys.path.append("../../plots")
+from plot_rt import PlotRt
 
 @click.command()
 @click.option('--n_people', help='population of the city', type=int, default=100)
@@ -49,12 +53,14 @@ def main(n_people=None,
 
     # Load the experimental configuration
     ExpConfig.load_config(config)
-    if outdir is None:
-        outdir = "output"
-    os.makedirs(f"{outdir}", exist_ok=True)
-    outdir = f"{outdir}/sim_v2_people-{n_people}_days-{simulation_days}_init-{init_percent_sick}_seed-{seed}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    os.makedirs(outdir)
-    outfile = os.path.join(outdir, "data")
+
+    if not tune:
+        if outdir is None:
+            outdir = "output"
+        os.makedirs(f"{outdir}", exist_ok=True)
+        outdir = f"{outdir}/sim_v2_people-{n_people}_days-{simulation_days}_init-{init_percent_sick}_seed-{seed}_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        os.makedirs(outdir)
+        outfile = os.path.join(outdir, "data")
 
     if tune:
         import warnings
@@ -81,7 +87,25 @@ def main(n_people=None,
     else:
         filename = f"tracker_data_n_{n_people}_seed_{seed}_{timenow}_{name}.pkl"
         data = extract_tracker_data(tracker, ExpConfig)
-        dump_tracker_data(data, outdir, filename)
+
+        cases_per_day = tracker.cases_per_day
+        if tracker.get_generation_time() > 0:
+            serial_interval = tracker.get_generation_time()
+        else:
+            serial_interval = 7.0
+            print("WARNING: serial_interval is 0")
+
+        print(f"using serial interval :{serial_interval}")
+        plotrt = PlotRt(R_T_MAX=4, sigma=0.25, GAMMA=1.0/serial_interval)
+        most_likely, _ = plotrt.compute(cases_per_day, r0_estimate=2.5)
+
+        print("Rt", most_likely[:20])
+        print("effective contacts", tracker.compute_mobility_scaling_factor())
+
+        outdir = pathlib.Path(outdir)
+        outdir.mkdir(exist_ok=True, parents=True)
+        with open(outdir / filename, 'wb') as f:
+            dill.dump(data, f)
 
 
 def simulate(n_people=None,

@@ -1623,6 +1623,7 @@ def extract_tracker_data(tracker, ExpConfig):
     data['feelings'] = tracker.feelings
     data['rec_feelings'] = tracker.rec_feelings
     data['outside_daily_contacts'] = tracker.outside_daily_contacts
+    data['mobility_reduction_factor'] = tracker.compute_mobility_scaling_factor()
     # data['dist_encounters'] = dict(tracker.dist_encounters)
     # data['time_encounters'] = dict(tracker.time_encounters)
     # data['day_encounters'] = dict(tracker.day_encounters)

@@ -436,6 +436,8 @@ class City(simpy.Environment):
         """
         self.current_day = 0
         humans_notified = False
+        TMP_MOBILITY_SCALING_FACTOR = ExpConfig.get("MOBILITY_SCALING_FACTOR")
+        ExpConfig.set("MOBILITY_SCALING_FACTOR", 1.0)
 
         while True:
             # Notify humans to follow interventions on intervention day
@@ -449,6 +451,9 @@ class City(simpy.Environment):
 
                 _ = [h.notify(self.intervention) for h in self.humans]
                 print(self.intervention)
+
+                ExpConfig.set("MOBILITY_SCALING_FACTOR", TMP_MOBILITY_SCALING_FACTOR)
+
                 if ExpConfig.get('COLLECT_TRAINING_DATA'):
                     print("naive risk calculation without changing behavior... Humans notified!")
 
@@ -1175,9 +1180,9 @@ class EmptyCity(City):
         self.test_count_today = defaultdict(int)
 
         # Get the test type with the lowest preference?
-        # TODO - EM: Should this rather sort on 'preference' in descending order? 
+        # TODO - EM: Should this rather sort on 'preference' in descending order?
         self.test_type_preference = list(zip(*sorted(TEST_TYPES.items(), key=lambda x:x[1]['preference'])))[0]
-    
+
         self.humans = []
         self.households = OrderedSet()
         self.stores = []
